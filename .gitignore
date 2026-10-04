@@ -1,0 +1,73 @@
+# ===== Secrets & credentials =====
+.env
+.env.*
+!.env.example
+*.ovpn
+credentials/
+credentials.*
+*.key
+*.pem
+kubeconfig*
+
+# ===== Model weights (too large for git) =====
+*.pth
+*.pt
+*.bin
+*.safetensors
+*.ckpt
+*.onnx
+*.tar
+checkpoints/
+models/
+Wav2Lip/checkpoints/
+Wav2Lip/face_detection/detection/sfd/
+SadTalker/checkpoints/
+SadTalker/gfpgan/
+MuseTalk/models/
+
+# ===== Vector DB & generated outputs =====
+chroma_db/
+outputs/
+results/
+evaluation/results/
+evaluation/outputs/
+*.mp4
+*.avi
+*.wav
+*.mp3
+!frontend/assets/wiv2lip.gif
+!alexia_student_ai_assistant.mp4
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+env/
+.ipynb_checkpoints/
+
+# ===== OS / editors =====
+.DS_Store
+Thumbs.db
+~$*
+*.swp
+.vscode/
+.idea/
+
+# ===== Logs & temp =====
+*.log
+logs/
+tmp/
+temp/
+.claude/scheduled_tasks.lock
+
+# ===== Submodule clones (keep code separate from this repo) =====
+# These are cloned manually per environment, not vendored
+Wav2Lip/__pycache__/
+SadTalker/__pycache__/
+MuseTalk/__pycache__/
