@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Physics Tutor</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0d0d10;
+            color: #e2e2e8;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        /* ── Header ── */
+        .header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: linear-gradient(135deg, #a78bfa, #38bdf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header p {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+
+        /* ── Main card ── */
+        .card {
+            background: #16161a;
+            border: 1px solid #27272e;
+            border-radius: 20px;
+            padding: 28px 28px 24px;
+            width: 100%;
+            max-width: 520px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+        }
+
+        /* ── Avatar ── */
+        #avatar-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: #1e1e24;
+            border: 3px solid #3f3f52;
+            overflow: hidden;
+            flex-shrink: 0;
+            transition: border-color 0.3s;
+        }
+        #avatar-container img,
+        #avatar-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #avatar-container.talking {
+            border-color: #38bdf8;
+            box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+            animation: pulse 0.5s infinite alternate;
+        }
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to   { transform: scale(1.04); }
+        }
+
+        /* ── Status pill ── */
+        #status {
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: #1e1e24;
+            border: 1px solid #27272e;
+            color: #6b7280;
+            transition: all 0.3s;
+        }
+        #status.connected   { color: #34d399; border-color: #34d399; }
+        #status.disconnected{ color: #f87171; border-color: #f87171; }
+
+        /* ── Chat box ── */
+        #chat-box {
+            width: 100%;
+            height: 220px;
+            background: #0d0d10;
+            border: 1px solid #27272e;
+            border-radius: 12px;
+            padding: 12px 14px;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.65;
+            color: #d1d5db;
+            scrollbar-width: thin;
+            scrollbar-color: #3f3f52 transparent;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .msg { display: flex; flex-direction: column; gap: 2px; }
+        .msg-you  { align-items: flex-end; }
+        .msg-teacher { align-items: flex-start; }
+        .msg-label { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; color: #6b7280; }
+        .msg-you .msg-label { color: #a78bfa; }
+        .msg-teacher .msg-label { color: #38bdf8; }
+        .msg-bubble {
+            max-width: 88%;
+            padding: 7px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            line-height: 1.55;
+            word-break: break-word;
+        }
+        .msg-you .msg-bubble     { background: #2d1f5e; color: #e2e2e8; border-bottom-right-radius: 3px; }
+        .msg-teacher .msg-bubble { background: #1a2535; color: #e2e2e8; border-bottom-left-radius: 3px; }
+        .lipsync-error { font-size: 11px; color: #f87171; background: #2a1414; border-radius: 8px; padding: 4px 10px; margin-top: 2px; }
+
+        /* ── Settings row ── */
+        .settings-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+            background: #0d0d10;
+            border: 1px solid #27272e;
+            border-radius: 12px;
+            padding: 10px 16px;
+        }
+
+        /* Toggle switch */
+        .toggle-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #9ca3af;
+            cursor: pointer;
+            user-select: none;
+        }
+        .toggle-wrap input[type="checkbox"] { display: none; }
+        .toggle-track {
+            width: 36px;
+            height: 20px;
+            background: #3f3f52;
+            border-radius: 20px;
+            position: relative;
+            transition: background 0.2s;
+        }
+        .toggle-track::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: #fff;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: left 0.2s;
+        }
+        .toggle-wrap input:checked + .toggle-track { background: #7c3aed; }
+        .toggle-wrap input:checked + .toggle-track::after { left: 19px; }
+
+        /* Engine select */
+        .engine-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #9ca3af;
+            margin-left: auto;
+        }
+        .engine-wrap label { white-space: nowrap; }
+        select {
+            background: #1e1e24;
+            color: #e2e2e8;
+            border: 1px solid #3f3f52;
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 13px;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        select:focus { border-color: #7c3aed; }
+        select:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ── Timing panel ── */
+        .timing-panel {
+            width: 100%;
+            background: #0d0d10;
+            border: 1px solid #27272e;
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: none;
+        }
+        .timing-panel.visible { display: block; }
+        .timing-title {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #6b7280;
+            margin-bottom: 10px;
+        }
+        .timing-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 12px;
+        }
+        .timing-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+        .timing-label { color: #6b7280; }
+        .timing-value { font-weight: 600; color: #e2e2e8; font-variant-numeric: tabular-nums; }
+        .timing-value.highlight { color: #38bdf8; }
+        .timing-engine-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 6px;
+            background: #1e1e24;
+            border: 1px solid #3f3f52;
+            color: #a78bfa;
+            margin-bottom: 8px;
+        }
+
+        /* ── Input row ── */
+        .input-row {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+        #text-input {
+            flex: 1;
+            background: #0d0d10;
+            border: 1px solid #27272e;
+            border-radius: 12px;
+            color: #e2e2e8;
+            font-size: 14px;
+            padding: 10px 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        #text-input::placeholder { color: #4b5563; }
+        #text-input:focus { border-color: #7c3aed; }
+
+        /* ── Buttons ── */
+        .btn {
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            padding: 10px 18px;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        #send-btn {
+            background: #7c3aed;
+            color: #fff;
+        }
+        #send-btn:hover:not(:disabled) { opacity: 0.85; }
+
+        #mic-btn {
+            background: #be185d;
+            color: #fff;
+            white-space: nowrap;
+        }
+        #mic-btn:hover:not(:disabled) { opacity: 0.85; }
+        #mic-btn.recording {
+            background: #059669;
+            animation: flash 0.9s infinite;
+        }
+        @keyframes flash {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.55; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>AI Physics Tutor</h1>
+        <p>Whisper · Ollama · Edge-TTS / Chatterbox · Wav2Lip / MuseTalk / SadTalker</p>
+    </div>
+
+    <div class="card">
+        <!-- Avatar -->
+        <div id="avatar-container">
+            <img id="avatar-image" src="assets/teacher_avatar.jpg" alt="AI Tutor">
+            <video id="avatar-video" style="display:none;" playsinline></video>
+        </div>
+
+        <!-- Status -->
+        <div id="status" class="disconnected">Disconnected</div>
+
+        <!-- Last saved video (shown after response) -->
+        <div id="saved-video-wrap" style="display:none; width:100%; border-radius:12px; overflow:hidden; background:#0d0d10; border:1px solid #27272e;">
+            <div style="font-size:10px; font-weight:700; letter-spacing:0.5px; color:#6b7280; padding:6px 12px 0; text-transform:uppercase;">Last response video</div>
+            <video id="saved-video" controls style="width:100%; max-height:220px; display:block;" playsinline></video>
+        </div>
+
+        <!-- Chat transcript -->
+        <div id="chat-box">
+            <div class="msg msg-teacher">
+                <span class="msg-label">TEACHER</span>
+                <span class="msg-bubble">Welcome! Ask a physics question by typing or holding the mic.</span>
+            </div>
+        </div>
+
+        <!-- Model selector row -->
+        <div class="settings-row" style="gap:12px;">
+            <div class="engine-wrap" style="margin-left:0; flex:1;">
+                <label for="model-select">LLM:</label>
+                <select id="model-select" style="flex:1; max-width:260px;">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div id="model-badge" style="font-size:10px; color:#a78bfa; background:#1e1e24; border:1px solid #3f3f52; border-radius:6px; padding:2px 8px; white-space:nowrap;">—</div>
+        </div>
+
+        <!-- Avatar mode + TTS + engine selector -->
+        <div class="settings-row">
+            <label class="toggle-wrap">
+                <input type="checkbox" id="avatar-toggle">
+                <span class="toggle-track"></span>
+                Avatar
+            </label>
+            <div class="engine-wrap">
+                <label for="tts-select">TTS:</label>
+                <select id="tts-select" disabled>
+                    <option value="edge">Edge-TTS</option>
+                    <option value="chatterbox">Chatterbox</option>
+                </select>
+            </div>
+            <div class="engine-wrap">
+                <label for="engine-select">Lipsync:</label>
+                <select id="engine-select" disabled>
+                    <option value="wav2lip">Wav2Lip</option>
+                    <option value="musetalk">MuseTalk</option>
+                    <option value="sadtalker">SadTalker</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Timing benchmark panel -->
+        <div class="timing-panel" id="timing-panel">
+            <div class="timing-title">Last response benchmark</div>
+            <div class="timing-engine-badge" id="timing-engine">—</div>
+            <div class="timing-grid">
+                <div class="timing-row">
+                    <span class="timing-label">Total time</span>
+                    <span class="timing-value highlight" id="t-total">—</span>
+                </div>
+                <div class="timing-row">
+                    <span class="timing-label">LLM</span>
+                    <span class="timing-value" id="t-llm">—</span>
+                </div>
+                <div class="timing-row">
+                    <span class="timing-label">TTS avg/sentence</span>
+                    <span class="timing-value" id="t-tts-avg">—</span>
+                </div>
+                <div class="timing-row">
+                    <span class="timing-label">TTS total</span>
+                    <span class="timing-value" id="t-tts-total">—</span>
+                </div>
+                <div class="timing-row">
+                    <span class="timing-label">Lipsync avg/sentence</span>
+                    <span class="timing-value highlight" id="t-ls-avg">—</span>
+                </div>
+                <div class="timing-row">
+                    <span class="timing-label">Lipsync total</span>
+                    <span class="timing-value" id="t-ls-total">—</span>
+                </div>
+                <div class="timing-row">
+                    <span class="timing-label">Sentences</span>
+                    <span class="timing-value" id="t-sentences">—</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="input-row">
+            <input type="text" id="text-input" placeholder="Ask a physics question…" autocomplete="off">
+            <button class="btn" id="send-btn">Send</button>
+            <button class="btn" id="mic-btn">🎙 Hold</button>
+        </div>
+
+        <!-- History bar -->
+        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; font-size:12px; color:#6b7280;">
+            <span id="history-count">No history yet</span>
+            <button class="btn" id="clear-btn" style="padding:5px 12px; font-size:12px; background:#3f3f52;">Clear history</button>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>

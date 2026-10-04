@@ -66,8 +66,8 @@ tmp/
 temp/
 .claude/scheduled_tasks.lock
 
-# ===== Submodule clones (keep code separate from this repo) =====
-# These are cloned manually per environment, not vendored
-Wav2Lip/__pycache__/
-SadTalker/__pycache__/
-MuseTalk/__pycache__/
+# ===== Submodule clones (not vendored in this repo) =====
+# These are cloned manually per environment following README instructions.
+Wav2Lip/
+SadTalker/
+MuseTalk/

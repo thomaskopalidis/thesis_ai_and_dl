@@ -1,0 +1,5 @@
+Newton's First Law of Motion states that an object will remain at rest or move at a constant velocity unless acted upon by a net external force. This property is also known as inertia.
+
+Newton's Second Law of Motion states that the acceleration of an object is directly proportional to the net force acting on it and inversely proportional to its mass. The key formula is F=ma.
+
+The Law of Conservation of Energy states that energy cannot be created or destroyed, only transformed from one form to another. The total energy of an isolated system remains constant.

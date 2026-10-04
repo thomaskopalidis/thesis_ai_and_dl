@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: physics-tutor
+spec:
+  selector:
+    matchLabels:
+      app: physics-tutor
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: physics-tutor
+    spec:
+      containers:
+      - name: physics-tutor
+        imagePullPolicy: Always
+        image: pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
+        command: ["bash", "-c"]
+        args:
+          - |
+            export PATH="/tmp/.local/bin:$PATH"
+            export HOME=/tmp
+            export PYTHONPATH="/workspace/physics_tutor:$PYTHONPATH"
+
+            echo "=== Installing Python packages ==="
+            python3 -m pip install -q --user \
+              fastapi "uvicorn[standard]" \
+              edge-tts \
+              faster-whisper \
+              chromadb sentence-transformers \
+              requests pillow \
+              "opencv-python-headless==4.10.0.84" \
+              "numpy<2" scipy tqdm \
+              librosa numba resampy soundfile \
+              ollama
+
+            echo "=== Installing Ollama binary ==="
+            mkdir -p /tmp/bin
+            _OLLAMA_DL="https://github.com/ollama/ollama/releases/download/v0.5.13/ollama-linux-amd64.tgz"
+            wget -q -O /tmp/ollama.tgz "$_OLLAMA_DL" 2>&1
+            cd /tmp && tar -xzf ollama.tgz -C /tmp/bin 2>/dev/null || mv /tmp/ollama.tgz /tmp/bin/ollama
+            chmod +x /tmp/bin/ollama 2>/dev/null || true
+            export PATH="/tmp/bin:$PATH"
+
+            echo "=== Starting Ollama server ==="
+            OLLAMA_MODELS=/tmp/ollama_models ollama serve &
+            sleep 8
+
+            echo "=== Pulling model ==="
+            OLLAMA_MODELS=/tmp/ollama_models ollama pull qwen2.5:14b-instruct-q4_K_M 2>&1 | tail -5
+
+            echo "=== Waiting for app files ==="
+            for i in $(seq 1 60); do
+              [ -f /workspace/physics_tutor/app.py ] && echo "Files ready!" && break
+              echo "Waiting $i/60..."
+              sleep 5
+            done
+
+            echo "=== Starting app ==="
+            cd /workspace/physics_tutor
+            export PATH="/tmp/bin:/tmp/.local/bin:$PATH"
+            export OLLAMA_MODELS=/tmp/ollama_models
+            python3 app.py
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            nvidia.com/mig-3g.20gb: "1"
+          limits:
+            memory: "32Gi"
+            cpu: "8"
+            nvidia.com/mig-3g.20gb: "1"
+        volumeMounts:
+          - name: shared-memory
+            mountPath: /dev/shm
+          - name: workspace
+            mountPath: /workspace
+        env:
+          - name: LD_LIBRARY_PATH
+            value: "/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64:/usr/lib/x86_64-linux-gnu/"
+          - name: WHISPER_DEVICE
+            value: "cuda"
+          - name: WHISPER_MODEL
+            value: "base"
+          - name: OLLAMA_URL
+            value: "http://localhost:11434"
+          - name: OLLAMA_MODEL
+            value: "qwen2.5:14b-instruct-q4_K_M"
+          - name: AVATAR_IMAGE_PATH
+            value: "/workspace/physics_tutor/frontend/assets/teacher_avatar.jpg"
+          - name: HOME
+            value: "/tmp"
+      securityContext:
+        runAsUser: 2011
+        runAsGroup: 2011
+        fsGroup: 2011
+      volumes:
+        - name: shared-memory
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
+        - name: workspace
+          emptyDir:
+            sizeLimit: 50Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: physics-tutor-svc
+spec:
+  selector:
+    app: physics-tutor
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+    nodePort: 30800
+  type: NodePort
