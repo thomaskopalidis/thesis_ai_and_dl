@@ -38,6 +38,13 @@ evaluation/outputs/
 !frontend/assets/wiv2lip.gif
 !alexia_student_ai_assistant.mp4
 
+# ===== KB source PDFs (too large; download per README) =====
+Knowledge_base/sources/*.pdf
+Knowledge_base/processed/
+# Keep the structure visible via .gitkeep files
+!Knowledge_base/sources/.gitkeep
+!Knowledge_base/sources/misc/.gitkeep
+
 # ===== Python =====
 __pycache__/
 *.py[cod]
