@@ -9,6 +9,35 @@ MSc AI & Deep Learning, University of West Attica.
 
 ---
 
+## [2026-10-07] Βήμα 1.4 — Rebuild ChromaDB + smoke test retrieval
+
+- **Στόχος**: Να φορτώσουμε τα 3 950 clean chunks στο ChromaDB και να επιβεβαιώσουμε end-to-end ότι το RAG retrieval επιστρέφει σωστά metadata.
+- **Τι άλλαξε**:
+  - `chroma_db/` ξαναχτίστηκε από το μηδέν (drop + rebuild).
+  - `core/rag.py`: προστέθηκε `from __future__ import annotations` στην κορυφή για να δουλεύει το `int | None` type syntax κάτω από Python 3.9 (τοπικό venv). PEP 563 lazy evaluation.
+- **Εντολές που έτρεξαν**:
+  ```powershell
+  python evaluation/build_index.py
+  python -c "import sys; sys.path.insert(0, '.'); from core.rag import retrieve_with_metadata; r = retrieve_with_metadata('What is Newton second law?', top_k=3); ..."
+  ```
+- **Αποτελέσματα**:
+  - Collection `physics_kb` με **3 950 chunks**.
+  - Χρόνος index build: ~2 λεπτά (CPU embeddings, batch=256).
+  - Smoke test retrieval για query _"What is Newton second law?"_:
+    - Top-3 όλα από `Chapter 5 Newton's Laws of Motion`.
+    - Hit@3 ✅ (το section `5.3 Newton's Second Law` επιστράφηκε στο rank 3).
+    - Distances: 0.749, 0.827, 0.851.
+- **Προβλήματα και πώς λύθηκαν**:
+  1. **PEP 604 syntax error σε Python 3.9**: Το smoke test αρχικά απέτυχε με `TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'`. Το venv τρέχει Python 3.9.12 (όχι 3.12 όπως το global). Λύση: `from __future__ import annotations` → όλα τα type annotations του module γίνονται strings και αξιολογούνται lazy.
+  2. **ChromaDB telemetry errors** (`Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given`): γνωστό θέμα με τη βιβλιοθήκη `posthog` που χρησιμοποιεί η Chroma. Δεν επηρεάζει τη λειτουργία — μόνο αναφορά χρήσης. Αγνοείται.
+- **Σημείωση περιβάλλοντος για μελλοντικά βήματα**:
+  Το τοπικό venv είναι Python 3.9.12. Για το ΒΗΜΑ 3 (benchmark στο cluster) θα χρησιμοποιηθεί 3.11+ (K8s PyTorch base image). Αν προκύψουν νέα modules με PEP 604 syntax, θα πρέπει είτε να προσθέτουμε `from __future__ import annotations` είτε να αναβαθμίσουμε το τοπικό venv σε 3.11.
+- **Για τη διπλωματική**:
+  - **Κεφ. 4 §RAG implementation**: περιγραφή retrieval pipeline (query → MiniLM embedding → ChromaDB cosine → top-K με metadata).
+  - **Κεφ. 5 §Evaluation metrics**: αιτιολόγηση γιατί μετράμε Hit@3 και όχι μόνο Hit@1 (το embedding model επιστρέφει semantically close κείμενα που δεν είναι πάντα το ακριβές section).
+
+---
+
 ## [2026-10-07] Βήμα 1.3b — Διόρθωση ToC extraction (3 950 clean chunks)
 
 - **Στόχος**: Εξάλειψη των ~5 000 duplicate chunks του πρώτου run και σωστή απόδοση `chapter` metadata για κάθε chunk.
