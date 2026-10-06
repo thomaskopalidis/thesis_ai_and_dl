@@ -9,6 +9,43 @@ MSc AI & Deep Learning, University of West Attica.
 
 ---
 
+## [2026-10-07] Βήμα 1.3b — Διόρθωση ToC extraction (3 950 clean chunks)
+
+- **Στόχος**: Εξάλειψη των ~5 000 duplicate chunks του πρώτου run και σωστή απόδοση `chapter` metadata για κάθε chunk.
+- **Τι άλλαξε**:
+  - `evaluation/ingest_kb.py`:
+    - `EXCLUDE_PATTERNS`: προστέθηκαν 5 νέα patterns — `^chapter outline`, `^contents$`, `^blank page`, `^universityphysicsvolume\d+\.pdf$`, `^chapter\s+\d+\s*$` (για bare `Chapter N` χωρίς τίτλο).
+    - `extract_sections_from_pdf()`: πλήρης αναδιάρθρωση. Level-1 entries **ποτέ δεν γίνονται sections** — είναι μόνο labels για το `chapter` metadata των level-2+ children. Το chapter ancestor βρίσκεται παραλείποντας excluded τίτλους (ώστε το auto-generated `UniversityPhysicsVolumeN.pdf` bookmark να μην γίνει chapter label).
+  - Το commit θα γίνει μετά το rebuild του index.
+- **Εντολές που έτρεξαν**:
+  ```powershell
+  python evaluation/ingest_kb.py --chunk-size 220 --overlap 32 --preview 5
+  ```
+- **Αποτελέσματα** (hardware: Windows 11, CPU-only, ~3 λεπτά):
+
+  | Metric | Buggy run (10-07, πρωί) | Fixed run (10-07, βράδυ) | Δ |
+  |---|---|---|---|
+  | Total chunks | 10 528 | **3 950** | −62.5% (duplicates removed) |
+  | Vol.1 / 2 / 3 chunks | 4 309 / 3 448 / 2 771 | 1 612 / 1 265 / 1 073 | |
+  | Sections kept V1/V2/V3 | 152 / 145 / 111 | 116 / 111 / 87 | |
+  | Mean tokens / chunk | 196.4 | **194.5** | stable |
+  | Oversize chunks (>256) | 0 | **0** ✅ | stable |
+  | Chapter metadata examples | `UniversityPhysicsVolume1.pdf` ❌ | `Chapter 5 Newton's Laws of Motion` ✅ | fixed |
+  | Page ranges per chunk | up to pp.2-959 ❌ | 3-11 σελ. ✅ | fixed |
+
+- **Προβλήματα και πώς λύθηκαν**:
+  1. **Fake PDF-level bookmark** (`L1 UniversityPhysicsVolume{1,2,3}.pdf` στην αρχή του ToC, p.1): παραγόταν ξανά ολόκληρο το βιβλίο ως «chapter». Λύση: regex `^universityphysicsvolume\d+\.pdf$` στα EXCLUDE_PATTERNS και αλγοριθμική αναδιάταξη ώστε τα level-1 να μην γίνονται ποτέ sections.
+  2. **End-matter noise στο Vol.1** (`L2 Chapter N` entries χωρίς τίτλο στις σελίδες 915-947): regex `^chapter\s+\d+\s*$`.
+  3. **Mini-sections χωρίς ουσιαστικό περιεχόμενο** (`Chapter Outline` σε κάθε κεφάλαιο, `Contents`, `Blank Page`): regexes αντίστοιχα.
+- **Γνωστός περιορισμός (δεν διορθώνεται σε αυτό το βήμα)**:
+  Μαθηματικά σύμβολα (π.χ. θ, μ, φ, υποδείκτες) χάνονται κατά το text extraction από PDF — PyMuPDF `get_text("text")` επιστρέφει κενό στη θέση του glyph. Το RAG retrieval βασίζεται σε περιβαλλοντικές λέξεις, όχι σύμβολα, οπότε αποδεκτό για το πρώτο iteration. Σημειωτέο για **Κεφ. 4 §Limitations**.
+- **Για τη διπλωματική**:
+  - **Κεφ. 4 §Knowledge base statistics**: τελικά νούμερα (3 950 chunks, 194.5 mean tokens, 0 oversize, 314 sections συνολικά).
+  - **Κεφ. 4 §Preprocessing**: ToC-based extraction, λίστα EXCLUDE_PATTERNS, παράδειγμα του auto-generated bookmark bug ως illustration πολυπλοκότητας real-world ingestion.
+  - **Κεφ. 4 §Limitations**: text extraction loses math glyphs → semantic retrieval only.
+
+---
+
 ## [2026-10-07] Βήμα 1.3 — Πρώτο ingestion του KB (10 528 chunks, εντοπίστηκε bug ToC)
 
 - **Στόχος**: Να χτίσουμε την πρώτη έκδοση του `chunks.jsonl` από τα 3 PDFs του OpenStax με chunking 220 tokens / overlap 32, και metadata από τα PDF bookmarks.

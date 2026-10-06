@@ -1,14 +1,14 @@
 # Knowledge Base — ingestion notes
 
-_Generated: 2026-10-07 00:03_
+_Generated: 2026-10-07 00:17_
 
 ## Sources
 
 | File | Volume | License | Chunks |
 |------|--------|---------|--------|
-| `openstax_vol1.pdf` | University Physics Volume 1 | CC BY 4.0 | 4309 |
-| `openstax_vol2.pdf` | University Physics Volume 2 | CC BY 4.0 | 3448 |
-| `openstax_vol3.pdf` | University Physics Volume 3 | CC BY 4.0 | 2771 |
+| `openstax_vol1.pdf` | University Physics Volume 1 | CC BY 4.0 | 1612 |
+| `openstax_vol2.pdf` | University Physics Volume 2 | CC BY 4.0 | 1265 |
+| `openstax_vol3.pdf` | University Physics Volume 3 | CC BY 4.0 | 1073 |
 
 ## Chunking parameters
 
@@ -20,9 +20,9 @@ _Generated: 2026-10-07 00:03_
 
 ## Statistics
 
-- Total chunks: **10528**
-- Mean tokens / chunk: **196.4**
-- Min / max tokens: 2 / 220
+- Total chunks: **3950**
+- Mean tokens / chunk: **194.5**
+- Min / max tokens: 15 / 220
 - Chunks exceeding 256 tokens (would be truncated): **0** (target: 0)
 
 ## Excluded ToC entries
@@ -44,9 +44,14 @@ The following ToC entries are dropped entirely before chunking (matched case-ins
 - `^conceptual questions`
 - `^additional problems`
 - `^chapter review`
+- `^chapter outline`
 - `^about openstax`
 - `^about this book`
 - `^preface$`
+- `^contents$`
+- `^blank page`
+- `^universityphysicsvolume\d+\.pdf$`
+- `^chapter\s+\d+\s*$`
 
 ## Attribution (CC BY 4.0)
 

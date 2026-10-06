@@ -10,6 +10,27 @@
 
 ---
 
+## D-006 — ToC filtering rules για OpenStax PDFs (2026-10-07)
+
+- **Απόφαση**: Στο ingestion των OpenStax PDFs:
+  1. **Μόνο** level-2+ ToC entries γίνονται sections. Level-1 entries χρησιμοποιούνται ως labels (`chapter` metadata) των children τους.
+  2. Αφαιρούμε (EXCLUDE_PATTERNS) τα following non-content ή artifact entries: `Index`, `Answer Key`, `Appendix`, `References`, `Bibliography`, `Glossary`, `Problems`/`Exercises`/`Challenge Problems`, `Review`, `Conceptual Questions`, `Chapter Review`, `Chapter Outline`, `About OpenStax`, `About this book`, `Preface`, `Contents`, `Blank Page`, το auto-generated `UniversityPhysicsVolume\d+\.pdf` bookmark, και bare `Chapter N` χωρίς τίτλο.
+  3. Για να βρούμε το `chapter` metadata, αναζητούμε τον κοντινότερο level-1 ancestor που **δεν είναι** στα excluded. Αν δεν βρεθεί, το section πετιέται.
+- **Εναλλακτικές**:
+  - Να κρατάμε level-1 entries ως standalone sections όταν δεν έχουν children: αυτό ήταν η αρχική υλοποίηση και παρήγαγε duplicates (ένα level-1 bookmark στην p.1 κάθε PDF πιάνει όλο το βιβλίο).
+  - Να κάνουμε regex-based chapter detection στο body text: fragile, παραβιάζει τον κανόνα «chapter/section από bookmarks» του πλάνου.
+  - Να κρατάμε και το `Chapter Outline`: περιέχει μόνο learning objectives (bullet lists) — προσθέτει θόρυβο στο embedding space χωρίς πληροφορία.
+- **Γιατί**:
+  - Σωστότητα: duplicate content θα διαστρέβλωνε Precision@3 (δύο διαφορετικά chunk_ids με το ίδιο κείμενο δίνουν ψευδώς υψηλό precision).
+  - Αξιοπιστία metadata: ερωτήσεις αξιολόγησης (ΒΗΜΑ 2) αντιστοιχίζονται σε `chapter`/`section` → πρέπει να είναι καθαρά και σταθερά.
+- **Επίδραση στα νούμερα**:
+  - Chunks: 10 528 → **3 950** (-62.5%).
+  - Mean tokens/chunk σταθερό (196.4 → 194.5).
+  - Oversize chunks: 0 (σταθερό).
+- **Πηγή**: εσωτερική διάγνωση μέσω `evaluation/debug_toc.py` σε όλα τα PDFs (OpenStax University Physics Vol. 1-3).
+
+---
+
 ## D-005 — Chunk size 220 tokens, overlap 32 tokens (2026-10-06)
 
 - **Απόφαση**: Chunking με **220 tokens** ανά chunk, **32 tokens** overlap (~15 %), μετρημένα με τον tokenizer του `sentence-transformers/all-MiniLM-L6-v2`.

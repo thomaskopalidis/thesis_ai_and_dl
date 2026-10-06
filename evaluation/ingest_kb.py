@@ -73,9 +73,15 @@ EXCLUDE_PATTERNS = [
         r"^conceptual questions",
         r"^additional problems",
         r"^chapter review",
+        r"^chapter outline",   # learning objectives list, not content
         r"^about openstax",
         r"^about this book",
         r"^preface$",
+        r"^contents$",
+        r"^blank page",                     # PDF generator artifact
+        r"^universityphysicsvolume\d+\.pdf$",# auto-added document-level bookmark
+        # 'Chapter N' with no further title (bare entries in end-matter noise)
+        r"^chapter\s+\d+\s*$",
     ]
 ]
 
@@ -150,13 +156,17 @@ def extract_sections_from_pdf(pdf_path: Path, volume_label: str) -> list[Section
     Build a list of Section objects from a PDF, using its bookmarks (ToC)
     to delimit chapters and sections.
 
-    Logic:
-      - get_toc(simple=True) returns [level, title, page].
-      - Iterate consecutive entries; the pages for entry[i] are
-        [entry[i].page, entry[i+1].page - 1] (or until last page).
-      - Keep level 2+ entries as sections. Their chapter is the most recent
-        level-1 ancestor.
-      - Skip excluded titles entirely.
+    Design (post-fix, 2026-10-07):
+      - get_toc(simple=True) returns [[level, title, page], ...].
+      - We ONLY keep level-2+ entries as sections. Level-1 entries ("Chapter N
+        Something" or non-content bookmarks like "Contents"/the auto-generated
+        PDF-filename bookmark) are never emitted as sections themselves; they
+        exist only to label their descendants' `chapter` metadata.
+      - For a level-2+ entry, `chapter` = nearest level-1 ancestor that is
+        NOT in the exclusion list (so e.g. the stray 'UniversityPhysicsVolume1.pdf'
+        root bookmark never becomes a chapter label).
+      - Page range for an entry is [page, next_shallower_or_equal_level.page - 1].
+      - Entries whose own title matches EXCLUDE_PATTERNS are skipped entirely.
     """
     import fitz  # PyMuPDF
 
@@ -170,39 +180,36 @@ def extract_sections_from_pdf(pdf_path: Path, volume_label: str) -> list[Section
     total_pages = doc.page_count
     sections: list[Section] = []
 
-    # Walk the ToC and compute page ranges.
     for i, (level, title, page) in enumerate(toc):
-        # Next entry at the same OR shallower level marks the end of this one.
+        # 1. Never keep level-1 entries as sections. They are labels only.
+        if level < 2:
+            continue
+
+        # 2. Skip entries whose own title is non-content.
+        if is_excluded_title(title):
+            continue
+
+        # 3. Compute page range (end = page before next entry at same-or-shallower level).
         page_end = total_pages
         for j in range(i + 1, len(toc)):
             if toc[j][0] <= level:
                 page_end = max(toc[j][2] - 1, page)
                 break
 
-        if is_excluded_title(title):
+        # 4. Find the nearest level-1 ancestor that is NOT excluded.
+        chapter = ""
+        for k in range(i - 1, -1, -1):
+            if toc[k][0] == 1 and not is_excluded_title(toc[k][1]):
+                chapter = toc[k][1].strip()
+                break
+        if not chapter:
+            # No valid level-1 ancestor (e.g. 'About OpenStax' under 'Preface').
+            # Drop the section; nothing sensible to attribute it to.
             continue
 
-        # Determine chapter (nearest level-1 ancestor, including self).
-        if level == 1:
-            chapter = title.strip()
-            section_name = title.strip()
-        else:
-            chapter = title.strip()  # fallback
-            for k in range(i - 1, -1, -1):
-                if toc[k][0] == 1:
-                    chapter = toc[k][1].strip()
-                    break
-            section_name = title.strip()
+        section_name = title.strip()
 
-        # Only keep leaf-ish entries: level >= 2 or level 1 with no children.
-        # (If level 1 and the next entry is a child, we skip the level-1 entry
-        # because its content will be covered by the children.)
-        if level == 1:
-            has_children = (i + 1 < len(toc) and toc[i + 1][0] > 1)
-            if has_children:
-                continue
-
-        # Extract text for the page range.
+        # 5. Extract text for the page range.
         text_parts = []
         for p in range(page - 1, min(page_end, total_pages)):
             try:
