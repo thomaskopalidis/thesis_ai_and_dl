@@ -1,0 +1,81 @@
+# DECISIONS — μεθοδολογικές αποφάσεις για τη διπλωματική
+
+Κάθε απόφαση έχει:
+- **Απόφαση**: τι επιλέχθηκε
+- **Εναλλακτικές**: τι εξετάστηκε
+- **Γιατί**: αιτιολόγηση
+- **Πηγή / παραπομπή**: όπου υπάρχει
+
+> Για συνέχειες και αλλαγές στο σχεδιασμό, εγγραφή νεότερη πάνω.
+
+---
+
+## D-005 — Chunk size 220 tokens, overlap 32 tokens (2026-10-06)
+
+- **Απόφαση**: Chunking με **220 tokens** ανά chunk, **32 tokens** overlap (~15 %), μετρημένα με τον tokenizer του `sentence-transformers/all-MiniLM-L6-v2`.
+- **Εναλλακτικές**:
+  - 256/0 (full capacity, no overlap): κίνδυνος truncation σε οριακές περιπτώσεις, καμία προστασία για φόρμουλες στα όρια.
+  - 512/64 (όπως σε BERT-base RAG tutorials): δεν έχει νόημα — το all-MiniLM-L6-v2 κόβει σιωπηλά στα 256.
+  - Word-based / character-based chunking: δεν αντιστοιχεί στα units που βλέπει το μοντέλο.
+- **Γιατί**:
+  - Το μοντέλο έχει hard limit 256 tokens. Το 220 αφήνει headroom για την overlap tail και για BPE idiosyncrasies.
+  - Overlap 32 αρκεί για να εμφανίζεται μια εξίσωση 10–20 tokens και στα δύο γειτονικά chunks αν βρεθεί στα όρια.
+  - Το εξασφαλίζουμε με έλεγχο: κανένα chunk > 256 tokens → `oversize_count == 0` (verified: 2026-10-07).
+- **Πηγή**: Reimers & Gurevych, "Sentence-BERT" (EMNLP 2019); documentation του `sentence-transformers/all-MiniLM-L6-v2` (`max_seq_length=256`).
+
+---
+
+## D-004 — Embedding model: all-MiniLM-L6-v2 (2026-10-04)
+
+- **Απόφαση**: Χρήση `sentence-transformers/all-MiniLM-L6-v2` ως embedding model.
+- **Εναλλακτικές**: `all-mpnet-base-v2` (καλύτερα scores αλλά 3× αργότερο), OpenAI `text-embedding-3-small` (εξάρτηση από cloud + κόστος).
+- **Γιατί**:
+  - 6-layer MiniLM είναι ~5× ταχύτερο από mpnet-base, κρίσιμο για real-time retrieval.
+  - 384-dim embeddings → μικρότερο ChromaDB index.
+  - Το 256-token context όριο είναι αρκετό για physics passages μετά το chunking.
+  - Υπάρχει ήδη στο baseline project — καμία ρήξη με τον υπάρχοντα κώδικα.
+- **Πηγή**: MTEB benchmark leaderboard, HuggingFace model card.
+
+---
+
+## D-003 — PDF extraction: PyMuPDF αντί pypdf (2026-10-06)
+
+- **Απόφαση**: Χρήση `pymupdf==1.24.10` για PDF ingestion.
+- **Εναλλακτικές**: `pypdf`, `pdfplumber`, `unstructured`.
+- **Γιατί**:
+  - Το `fitz.Document.get_toc(simple=True)` εκθέτει τα PDF bookmarks ιεραρχικά, επιτρέποντας robust chapter/section detection χωρίς fragile regex πάνω στο body text.
+  - Καλύτερη εξαγωγή κειμένου σε 2-column επιστημονικά layouts.
+  - Μικρότερο footprint από `unstructured` (που έχει βαρύ dependency chain).
+- **Σημείωση**: τα OpenStax PDFs περιέχουν rich bookmarks → το ToC-based approach είναι εφικτό.
+
+---
+
+## D-002 — Σύνολο μοντέλων για σύγκριση LLM (2026-10-04)
+
+- **Απόφαση**: Benchmark στο ΒΗΜΑ 3 θα συγκρίνει τα παρακάτω LLMs:
+  - `qwen2.5:3b` (Ollama, local, small)
+  - `qwen2.5:7b` (Ollama, local, medium)
+  - `qwen2.5:14b-instruct-q4_K_M` (Ollama, local, large)
+  - `llama3.1:8b` (Ollama, local, εναλλακτική οικογένεια)
+  - `cloud:openai:gpt-4o-mini` (cloud baseline)
+- **Εναλλακτικές**:
+  - Μόνο qwen family: δεν θα έδειχνε αν η διαφορά οφείλεται στη family ή στο μέγεθος.
+  - Μεγαλύτερο Llama (70B): δεν τρέχει τοπικά, θα έβαζε bias στο cloud comparison.
+  - Anthropic Claude: εξετάστηκε αλλά για τον πρώτο γύρο κρατάμε έναν cloud provider για ελεγχόμενο σύνολο.
+- **Γιατί**:
+  - 3b/7b/14b της ίδιας family → απομονώνει την επίδραση **μεγέθους**.
+  - qwen2.5:7b vs llama3.1:8b (παρόμοιο μέγεθος, διαφορετική family) → απομονώνει την επίδραση **family/training**.
+  - Cloud → baseline σύγκρισης state-of-the-art.
+- **Πηγή**: Σχεδιασμός ανάλογος με Ouyang et al., "GPT-3 scaling laws" και πρακτικές σε evaluation surveys.
+
+---
+
+## D-001 — MuseTalk εκτός αρχικού benchmark (2026-10-04)
+
+- **Απόφαση**: Το MuseTalk **εξαιρείται** από το κύριο benchmark του ΒΗΜΑΤΟΣ 3.
+- **Εναλλακτικές**: Υλοποίηση κανονικού wrapper τώρα, πριν τα πειράματα.
+- **Γιατί**:
+  - Ο υπάρχων wrapper (`core/musictalk_lipsync.py`) είναι stub (επιστρέφει κενό mp4).
+  - Η πλήρης υλοποίηση απαιτεί τουλάχιστον 1-2 ημέρες εργασίας (model loading, VAE encode, UNet denoise loop, blending back).
+  - Προτεραιότητα: solid comparison Wav2Lip vs SadTalker (τα δύο που ήδη δουλεύουν). Το MuseTalk μπορεί να μπει ως future work ή επέκταση αν υπάρχει χρόνος.
+- **Αναθεώρηση**: Αν ολοκληρωθεί νωρίς το ΒΗΜΑ 4, θα επανεξεταστεί.

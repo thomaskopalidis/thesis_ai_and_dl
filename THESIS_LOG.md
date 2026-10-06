@@ -200,19 +200,33 @@ python evaluation/ingest_kb.py --chunk-size 220 --overlap 32 --preview 5
 python evaluation/build_index.py
 ```
 
-### §1.5 Results
+### §1.5 Results — first ingestion run (2026-10-07)
 
-_To be filled in after the student runs `ingest_kb.py` locally._
+> _For Ch.4 §Knowledge base statistics_
 
 | Metric | Value |
 |---|---|
-| Total chunks | _TBD_ |
-| Mean tokens / chunk | _TBD_ |
-| Max tokens / chunk | _TBD_ |
-| Chunks exceeding 256 tokens (must be 0) | _TBD_ |
-| Chunks per volume | _TBD_ |
+| Total chunks | **10,528** |
+| Mean tokens / chunk | **196.4** |
+| Chunks exceeding 256 tokens (silent-truncation guard) | **0** ✅ |
+| Chunks from Volume 1 (Mechanics / Fluids / Thermodynamics) | 4,309 |
+| Chunks from Volume 2 (Thermo / EM / Circuits / Optics) | 3,448 |
+| Chunks from Volume 3 (Waves / Modern / Quantum) | 2,771 |
+| Pre-chunking sections kept per volume | 152 / 145 / 111 |
 
-Preview of five random chunks + one with an equation: _TBD_ (will be pasted here from the script's console output).
+**Known problem flagged after the run (fix in progress):**
+
+The preview revealed that several level-1 ToC entries (e.g. a bookmark named
+after the PDF filename itself) were kept as giant "chapter" sections spanning
+the entire book (`pp. 2-959`), producing ≈ 5 000 duplicated chunks whose
+`chapter` metadata is useless (`UniversityPhysicsVolume1.pdf` instead of
+e.g. `Chapter 5 Newton's Laws of Motion`). Also, nested headings sometimes
+inherit the wrong chapter. A debug script (`evaluation/debug_toc.py`) was
+added to inspect the actual ToC structure, and the extraction logic will
+be rewritten before indexing. **The ChromaDB index was NOT built from this
+run** to avoid propagating the issue downstream.
+
+**Example preview chunks (post-cleanup):** _to be refreshed after the ToC fix._
 
 ### §1.6 Licence attribution
 

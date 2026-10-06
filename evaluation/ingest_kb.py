@@ -129,7 +129,13 @@ def load_tokenizer():
         )
         raise e
     name = f"sentence-transformers/{EMBEDDING_MODEL_NAME}"
-    return AutoTokenizer.from_pretrained(name)
+    tok = AutoTokenizer.from_pretrained(name)
+    # Silence the "sequence length is longer than max" warning: we deliberately
+    # tokenise long sentences in full to measure their size, then hard-split
+    # any sentence that exceeds chunk_tokens inside chunk_section(). The
+    # tokenizer's own max_length is irrelevant here.
+    tok.model_max_length = int(1e9)
+    return tok
 
 
 # ---------- PDF extraction ---------- #
@@ -299,16 +305,40 @@ def chunk_section(
     buf_sents: list[int] = []  # indices
     buf_len = 0
     i = 0
+    # Watchdog: in the worst case we visit each sentence at most twice
+    # (once that triggers an emit, once after overlap). Give some headroom.
+    max_iters = len(sentences) * 4 + 16
+    iters = 0
     while i < len(sentences):
+        iters += 1
+        if iters > max_iters:
+            # Defensive: emit whatever we have and bail out of this section.
+            # This should never fire in practice; if it does we want visible
+            # evidence rather than a silent hang.
+            print(
+                f"  [WARN] chunk_section watchdog tripped at sentence {i}/{len(sentences)}; "
+                f"flushing buffer and skipping remainder.",
+                flush=True,
+            )
+            break
+
         s_len = len(sent_tokens[i])
+
+        # Skip empty sentences (zero tokens): they can appear after cleaning
+        # produces things like a stand-alone "." or whitespace-only strings.
+        if s_len == 0:
+            i += 1
+            continue
+
         # If a single sentence is larger than chunk_tokens, hard-split it.
         if s_len > chunk_tokens:
             if buf_sents:
                 yield _emit(sentences, buf_sents, buf_len)
                 buf_sents, buf_len = [], 0
-            # Hard split by token slice.
+            # Hard split by token slice. Guard the step to avoid zero/negative.
+            step = max(1, chunk_tokens - overlap_tokens)
             tokens = sent_tokens[i]
-            for start in range(0, len(tokens), chunk_tokens - overlap_tokens):
+            for start in range(0, len(tokens), step):
                 piece = tokens[start : start + chunk_tokens]
                 yield tokenizer.decode(piece, skip_special_tokens=True), len(piece)
             i += 1
@@ -319,8 +349,10 @@ def chunk_section(
             buf_len += s_len
             i += 1
         else:
-            # Emit current buffer.
-            yield _emit(sentences, buf_sents, buf_len)
+            # Emit current buffer only if it has content.
+            if buf_sents:
+                yield _emit(sentences, buf_sents, buf_len)
+
             # Build overlap tail from the end of buf_sents.
             tail_sents: list[int] = []
             tail_len = 0
@@ -330,9 +362,20 @@ def chunk_section(
                     break
                 tail_sents.insert(0, idx)
                 tail_len += t
-            buf_sents = list(tail_sents)
-            buf_len = tail_len
-            # Do NOT advance i — retry current sentence in fresh buffer.
+
+            # Fix for infinite loop: if the overlap tail is identical to the
+            # buffer we just emitted (nothing fit in overlap, or everything
+            # fit), AND i has not advanced, we would retry forever. Detect
+            # this and force-advance by starting fresh with the current
+            # sentence as the only buffer content.
+            if tail_sents == buf_sents:
+                buf_sents = [i]
+                buf_len = s_len
+                i += 1
+            else:
+                buf_sents = list(tail_sents)
+                buf_len = tail_len
+                # Do NOT advance i — retry current sentence in fresh buffer.
 
     if buf_sents:
         yield _emit(sentences, buf_sents, buf_len)
@@ -380,12 +423,20 @@ def ingest(chunk_tokens: int, overlap_tokens: int, preview: int, seed: int) -> d
         if not path.is_file():
             print(f"[SKIP] {fname} not found at {path}")
             continue
-        print(f"[READ] {fname}")
+        print(f"[READ] {fname}", flush=True)
         sections = extract_sections_from_pdf(path, meta["volume"])
-        print(f"       → {len(sections)} sections kept (after exclusions)")
+        print(f"       → {len(sections)} sections kept (after exclusions)", flush=True)
 
         file_chunk_count = 0
+        n_sections = len(sections)
         for sec_i, section in enumerate(sections):
+            # Progress ping every 20 sections so the terminal never looks dead.
+            if sec_i % 20 == 0:
+                print(
+                    f"       chunking section {sec_i + 1}/{n_sections} "
+                    f"({file_chunk_count} chunks so far)…",
+                    flush=True,
+                )
             for ci, (text, n_tok) in enumerate(
                 chunk_section(section, tokenizer, chunk_tokens, overlap_tokens)
             ):
