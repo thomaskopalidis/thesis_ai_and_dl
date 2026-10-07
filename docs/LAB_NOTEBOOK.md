@@ -9,6 +9,32 @@ MSc AI & Deep Learning, University of West Attica.
 
 ---
 
+## [2026-10-07] Βήμα 2 — Α1: Synthetic audio για WER (10 wav)
+
+- **Στόχος**: Παραγωγή synthetic audio για 10 από τις 33 ερωτήσεις, ώστε στο ΒΗΜΑ 4 να μετρηθεί WER του Whisper σε «καθαρές» συνθήκες (lower-bound baseline).
+- **Τι άλλαξε**:
+  - `evaluation/generate_wer_audio.py` (νέο): async script που καλεί edge-tts (Jenny voice) για 10 επιλεγμένες ερωτήσεις και παράγει 16 kHz mono WAV μέσω ffmpeg.
+  - `evaluation/audio/synthetic/Q{01,03,05,07,10,13,16,22,24,28}.wav`: 10 αρχεία, 83-275 KB το καθένα (3-8 δευτερόλεπτα).
+  - `evaluation/audio/transcripts.json`: reference text για WER measurement (τι «λέει» κάθε wav).
+- **Επιλογή των 10 ερωτήσεων**:
+  7 από τα 8 topics × μίγμα easy/medium. Οι τύποι-βαρείς hard ερωτήσεις (Q04, Q08, Q15, Q19, Q23) εξαιρέθηκαν γιατί η καταγραφή τύπων σε φωνή είναι άλλο πρόβλημα (STT formula transcription) και αλλοιώνει το WER με thesis-irrelevant θόρυβο.
+- **Εντολές που έτρεξαν**:
+  ```powershell
+  python evaluation/generate_wer_audio.py
+  python -c "import sys; sys.path.insert(0, '.'); from core.stt import transcribe_audio; ..."
+  ```
+- **Αποτελέσματα**:
+  - 10 wav αρχεία παρήχθησαν επιτυχώς, όλα 16 kHz mono.
+  - Smoke test Whisper (`small`, CPU, int8) σε Q05:
+    - REF: `State Newton's first law of motion.`
+    - HYP: `State Newton's First Law of Motion.`
+    - Διαφορά μόνο σε capitalization (κανονικοποιείται στο WER metric).
+  - Το pipeline synthetic-wav → faster-whisper δουλεύει end-to-end.
+- **Για τη διπλωματική**:
+  - **Κεφ. 5 §STT evaluation**: synthetic WER = Whisper baseline σε κλειστές συνθήκες (TTS → Whisper). Recorded WER (Α2, pending) = ρεαλιστικό scenario (ελληνική προφορά). Διαφορά = STT accent penalty.
+
+---
+
 ## [2026-10-07] Βήμα 2 — Σετ αξιολόγησης (eval_questions.json, 33 ερωτήσεις)
 
 - **Στόχος**: Να φτιάξουμε το ground truth πάνω στο οποίο θα μετρηθούν Precision@3, Hit@3, LLM-as-judge correctness, STT WER και refuse-rate.

@@ -1,0 +1,62 @@
+{
+  "Q01": {
+    "reference": "What is the difference between distance and displacement?",
+    "file": "evaluation\\audio\\synthetic\\Q01.wav",
+    "source": "synthetic_edge_tts",
+    "voice": "en-US-JennyNeural"
+  },
+  "Q03": {
+    "reference": "A ball is thrown horizontally from a cliff. Why does its horizontal velocity stay constant while its vertical velocity increases?",
+    "file": "evaluation\\audio\\synthetic\\Q03.wav",
+    "source": "synthetic_edge_tts",
+    "voice": "en-US-JennyNeural"
+  },
+  "Q05": {
+    "reference": "State Newton's first law of motion.",
+    "file": "evaluation\\audio\\synthetic\\Q05.wav",
+    "source": "synthetic_edge_tts",
+    "voice": "en-US-JennyNeural"
+  },
+  "Q07": {
+    "reference": "If I push a wall, Newton's third law says the wall pushes back with equal force. Why do I not accelerate backwards?",
+    "file": "evaluation\\audio\\synthetic\\Q07.wav",
+    "source": "synthetic_edge_tts",
+    "voice": "en-US-JennyNeural"
+  },
+  "Q10": {
+    "reference": "State the law of conservation of mechanical energy and when it applies.",
+    "file": "evaluation\\audio\\synthetic\\Q10.wav",
+    "source": "synthetic_edge_tts",
+    "voice": "en-US-JennyNeural"
+  },
+  "Q13": {
+    "reference": "State Archimedes' principle.",
+    "file": "evaluation\\audio\\synthetic\\Q13.wav",
+    "source": "synthetic_edge_tts",
+    "voice": "en-US-JennyNeural"
+  },
+  "Q16": {
+    "reference": "What is the difference between temperature and heat?",
+    "file": "evaluation\\audio\\synthetic\\Q16.wav",
+    "source": "synthetic_edge_tts",
+    "voice": "en-US-JennyNeural"
+  },
+  "Q22": {
+    "reference": "Why do resistors in series add directly while resistors in parallel combine by the reciprocal rule?",
+    "file": "evaluation\\audio\\synthetic\\Q22.wav",
+    "source": "synthetic_edge_tts",
+    "voice": "en-US-JennyNeural"
+  },
+  "Q24": {
+    "reference": "State Snell's law of refraction.",
+    "file": "evaluation\\audio\\synthetic\\Q24.wav",
+    "source": "synthetic_edge_tts",
+    "voice": "en-US-JennyNeural"
+  },
+  "Q28": {
+    "reference": "What is time dilation in special relativity?",
+    "file": "evaluation\\audio\\synthetic\\Q28.wav",
+    "source": "synthetic_edge_tts",
+    "voice": "en-US-JennyNeural"
+  }
+}
