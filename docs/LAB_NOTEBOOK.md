@@ -9,6 +9,36 @@ MSc AI & Deep Learning, University of West Attica.
 
 ---
 
+## [2026-10-07] Βήμα 2 — Σετ αξιολόγησης (eval_questions.json, 33 ερωτήσεις)
+
+- **Στόχος**: Να φτιάξουμε το ground truth πάνω στο οποίο θα μετρηθούν Precision@3, Hit@3, LLM-as-judge correctness, STT WER και refuse-rate.
+- **Τι άλλαξε**:
+  - `evaluation/eval_questions.json` (νέο): 30 ερωτήσεις φυσικής + 3 εκτός θέματος.
+  - `evaluation/validate_questions.py` (νέο): επιβεβαιώνει JSON schema, duplicates, kb_source αντιστοίχιση με το KB, τήρηση δηλωμένης κατανομής.
+- **Σχεδιαστικές επιλογές**:
+  - `kb_source` ως structured object `{volume, chapter, section}` (όχι flat chunk_id) → σταθερό ακόμα και αν ξανατρέξουμε ingestion. βλ. DECISIONS D-007.
+  - Αγγλικά-μόνο ερωτήσεις/απαντήσεις (ευθυγράμμιση με KB και Teacher prompt).
+  - WER testing: synthetic (TTS) + ηχογραφημένες από τον φοιτητή (ρεαλιστικό accent). βλ. DECISIONS D-008.
+  - 6 ερωτήσεις αναφέρονται σε `section = "Introduction"` όπου η έννοια καλύπτεται από το intro του κεφαλαίου· Precision@3 μετριέται σε chapter granularity για αυτές.
+- **Εντολές που έτρεξαν**:
+  ```powershell
+  python evaluation/validate_questions.py
+  ```
+- **Αποτελέσματα**:
+  - 33 ερωτήσεις, 30 in-scope + 3 out-of-scope.
+  - Κατανομή δυσκολίας: easy=12, medium=12, hard=6 ✅
+  - Κατανομή topics: kinematics=4, newton_laws=4, energy_momentum=4, fluids=3, thermodynamics=4, electromagnetism=4, waves_optics=4, modern_physics=3 ✅
+  - KB cross-check: 44 chapters, 314 sections verified. Όλες οι `kb_source` references αντιστοιχούν σε έγκυρα chapter/section.
+  - Validator exit code: 0 — `[OK] All checks passed.`
+- **Προβλήματα και πώς λύθηκαν**:
+  1. Αρχικό JSON είχε κατανομή easy=13 / hard=5 (λάθος μέτρηση κατά τη σύνταξη). Το Q27 (Doppler effect) μετακινήθηκε από easy σε hard — ταιριάζει καλύτερα γιατί απαιτεί τύπο με division και σκέψη relative motion. Μετά τη διόρθωση: 12/12/6.
+- **Για τη διπλωματική**:
+  - **Κεφ. 5 §Evaluation protocol**: Πίνακας με την κατανομή ερωτήσεων (topics × difficulty) + αιτιολόγηση του schema.
+  - **Κεφ. 5 §Evaluation metrics**: ορισμοί Precision@3, Hit@3, LLM-judge rubric, refuse rate.
+  - **Appendix**: ολόκληρο το eval_questions.json ως πίνακας (ή reference σε git commit hash).
+
+---
+
 ## [2026-10-07] Βήμα 1.4 — Rebuild ChromaDB + smoke test retrieval
 
 - **Στόχος**: Να φορτώσουμε τα 3 950 clean chunks στο ChromaDB και να επιβεβαιώσουμε end-to-end ότι το RAG retrieval επιστρέφει σωστά metadata.

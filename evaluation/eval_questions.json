@@ -1,0 +1,457 @@
+{
+  "meta": {
+    "version": "1.0",
+    "created": "2026-10-07",
+    "schema": {
+      "id": "unique string Qnn or OOSn",
+      "question": "English question posed to the tutor",
+      "reference_answer": "ground-truth answer, 1-3 sentences",
+      "kb_source": "object with volume/chapter/section — must exist in Knowledge_base/processed/chunks.jsonl",
+      "difficulty": "easy | medium | hard",
+      "topic": "one of 8 physics topics or 'out_of_scope'",
+      "in_scope": "true for physics, false for refusal test"
+    },
+    "distribution": {
+      "in_scope_total": 30,
+      "out_of_scope_total": 3,
+      "by_difficulty": {"easy": 12, "medium": 12, "hard": 6},
+      "by_topic": {
+        "kinematics": 4,
+        "newton_laws": 4,
+        "energy_momentum": 4,
+        "fluids": 3,
+        "thermodynamics": 4,
+        "electromagnetism": 4,
+        "waves_optics": 4,
+        "modern_physics": 3
+      }
+    }
+  },
+  "questions": [
+    {
+      "id": "Q01",
+      "question": "What is the difference between distance and displacement?",
+      "reference_answer": "Distance is the total length of the path travelled and is a scalar; displacement is the straight-line vector from the initial to the final position, so it has both magnitude and direction.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 3 Motion Along a Straight Line",
+        "section": "3.1 Position, Displacement, and Average Velocity"
+      },
+      "difficulty": "easy",
+      "topic": "kinematics",
+      "in_scope": true
+    },
+    {
+      "id": "Q02",
+      "question": "What is the formula for average acceleration?",
+      "reference_answer": "Average acceleration is the change in velocity divided by the time interval over which that change occurs, a = Δv / Δt.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 3 Motion Along a Straight Line",
+        "section": "3.3 Average and Instantaneous Acceleration"
+      },
+      "difficulty": "easy",
+      "topic": "kinematics",
+      "in_scope": true
+    },
+    {
+      "id": "Q03",
+      "question": "A ball is thrown horizontally from a cliff. Why does its horizontal velocity stay constant while its vertical velocity increases?",
+      "reference_answer": "In projectile motion the only force acting (ignoring air resistance) is gravity, which is vertical; therefore the horizontal velocity has no acceleration and remains constant, while the vertical velocity grows under constant downward acceleration g.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 4 Motion in Two and Three Dimensions",
+        "section": "4.3 Projectile Motion"
+      },
+      "difficulty": "medium",
+      "topic": "kinematics",
+      "in_scope": true
+    },
+    {
+      "id": "Q04",
+      "question": "A car accelerates uniformly from rest at 2 m/s² for 5 seconds. What distance does it cover?",
+      "reference_answer": "Using x = ½ a t² with a = 2 m/s² and t = 5 s, the distance is x = 0.5 × 2 × 25 = 25 metres.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 3 Motion Along a Straight Line",
+        "section": "3.4 Motion with Constant Acceleration"
+      },
+      "difficulty": "hard",
+      "topic": "kinematics",
+      "in_scope": true
+    },
+
+    {
+      "id": "Q05",
+      "question": "State Newton's first law of motion.",
+      "reference_answer": "An object at rest stays at rest and an object in motion stays in motion with constant velocity unless acted upon by a net external force. This property is called inertia.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 5 Newton's Laws of Motion",
+        "section": "5.2 Newton's First Law"
+      },
+      "difficulty": "easy",
+      "topic": "newton_laws",
+      "in_scope": true
+    },
+    {
+      "id": "Q06",
+      "question": "What does Newton's second law state and what is its mathematical form?",
+      "reference_answer": "Newton's second law states that the net force on an object equals the product of its mass and its acceleration, F = m a. Equivalently, the acceleration is proportional to the net force and inversely proportional to the mass.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 5 Newton's Laws of Motion",
+        "section": "5.3 Newton's Second Law"
+      },
+      "difficulty": "easy",
+      "topic": "newton_laws",
+      "in_scope": true
+    },
+    {
+      "id": "Q07",
+      "question": "If I push a wall, Newton's third law says the wall pushes back with equal force. Why do I not accelerate backwards?",
+      "reference_answer": "The action-reaction forces act on different objects: the wall pushes on me, but friction from the floor also acts on me and typically cancels that push. Whether I accelerate depends on the net force on me, not on the reaction pair.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 5 Newton's Laws of Motion",
+        "section": "5.5 Newton’s Third Law"
+      },
+      "difficulty": "medium",
+      "topic": "newton_laws",
+      "in_scope": true
+    },
+    {
+      "id": "Q08",
+      "question": "A 10 kg box is pulled across a horizontal surface by a 40 N horizontal force. The coefficient of kinetic friction is 0.2. What is the acceleration of the box? Take g = 9.8 m/s².",
+      "reference_answer": "The friction force is μ m g = 0.2 × 10 × 9.8 = 19.6 N. The net force is 40 − 19.6 = 20.4 N, so a = F_net / m = 20.4 / 10 ≈ 2.04 m/s².",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 6 Applications of Newton's Laws",
+        "section": "6.2 Friction"
+      },
+      "difficulty": "hard",
+      "topic": "newton_laws",
+      "in_scope": true
+    },
+
+    {
+      "id": "Q09",
+      "question": "What is the work-energy theorem?",
+      "reference_answer": "The net work done on an object equals the change in its kinetic energy, W_net = ΔKE = ½ m v_f² − ½ m v_i².",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 7 Work and Kinetic Energy",
+        "section": "7.3 Work-Energy Theorem"
+      },
+      "difficulty": "easy",
+      "topic": "energy_momentum",
+      "in_scope": true
+    },
+    {
+      "id": "Q10",
+      "question": "State the law of conservation of mechanical energy and when it applies.",
+      "reference_answer": "In a system acted on only by conservative forces, the sum of kinetic and potential energy is constant: KE + PE = constant. It does not hold when non-conservative forces such as friction do work on the system.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 8 Potential Energy and Conservation of Energy",
+        "section": "Introduction"
+      },
+      "difficulty": "medium",
+      "topic": "energy_momentum",
+      "in_scope": true
+    },
+    {
+      "id": "Q11",
+      "question": "What is linear momentum and how is it related to force?",
+      "reference_answer": "Linear momentum is the product of mass and velocity, p = m v. Newton's second law in its original form states that the net force equals the time rate of change of momentum, F = dp/dt.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 9 Linear Momentum and Collisions",
+        "section": "Introduction"
+      },
+      "difficulty": "easy",
+      "topic": "energy_momentum",
+      "in_scope": true
+    },
+    {
+      "id": "Q12",
+      "question": "What is the difference between an elastic and an inelastic collision?",
+      "reference_answer": "In both types the total linear momentum of the system is conserved. In an elastic collision the total kinetic energy is also conserved, while in an inelastic collision some kinetic energy is converted to other forms such as heat or deformation.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 9 Linear Momentum and Collisions",
+        "section": "Introduction"
+      },
+      "difficulty": "medium",
+      "topic": "energy_momentum",
+      "in_scope": true
+    },
+
+    {
+      "id": "Q13",
+      "question": "State Archimedes' principle.",
+      "reference_answer": "A body fully or partially immersed in a fluid is buoyed up by a force equal to the weight of the fluid it displaces. This buoyant force acts upward through the centre of the displaced fluid volume.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 14 Fluid Mechanics",
+        "section": "14.4 Archimedes’ Principle and Buoyancy"
+      },
+      "difficulty": "easy",
+      "topic": "fluids",
+      "in_scope": true
+    },
+    {
+      "id": "Q14",
+      "question": "Explain in physical terms what Bernoulli's equation tells us about fluid flow.",
+      "reference_answer": "For an ideal fluid in steady flow, the sum of pressure energy, kinetic energy per unit volume, and gravitational potential energy per unit volume is constant along a streamline. In practical terms, where the fluid moves faster the pressure is lower.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 14 Fluid Mechanics",
+        "section": "14.6 Bernoulli’s Equation"
+      },
+      "difficulty": "medium",
+      "topic": "fluids",
+      "in_scope": true
+    },
+    {
+      "id": "Q15",
+      "question": "A hydraulic lift has a small piston of area 0.01 m² and a large piston of area 0.5 m². If a force of 100 N is applied to the small piston, what force is produced at the large piston?",
+      "reference_answer": "By Pascal's principle the pressure is transmitted undiminished, so F_large / A_large = F_small / A_small. Therefore F_large = 100 × (0.5 / 0.01) = 5000 N.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 14 Fluid Mechanics",
+        "section": "14.3 Pascal's Principle and Hydraulics"
+      },
+      "difficulty": "hard",
+      "topic": "fluids",
+      "in_scope": true
+    },
+
+    {
+      "id": "Q16",
+      "question": "What is the difference between temperature and heat?",
+      "reference_answer": "Temperature is a measure of the average kinetic energy of the particles in a system, while heat is energy transferred between systems because of a temperature difference. Temperature is a state variable; heat is a transfer of energy.",
+      "kb_source": {
+        "volume": "University Physics Volume 2",
+        "chapter": "Chapter 1 Temperature and Heat",
+        "section": "1.1 Temperature and Thermal Equilibrium"
+      },
+      "difficulty": "easy",
+      "topic": "thermodynamics",
+      "in_scope": true
+    },
+    {
+      "id": "Q17",
+      "question": "State the first law of thermodynamics.",
+      "reference_answer": "The change in the internal energy of a system equals the heat added to the system minus the work done by the system on its surroundings, ΔU = Q − W. It is a statement of energy conservation for thermodynamic systems.",
+      "kb_source": {
+        "volume": "University Physics Volume 2",
+        "chapter": "Chapter 3 The First Law of Thermodynamics",
+        "section": "3.3 First Law of Thermodynamics"
+      },
+      "difficulty": "easy",
+      "topic": "thermodynamics",
+      "in_scope": true
+    },
+    {
+      "id": "Q18",
+      "question": "Why does the second law of thermodynamics forbid a heat engine that converts all absorbed heat into work?",
+      "reference_answer": "The Kelvin statement of the second law says no cyclic process can take heat from a single reservoir and convert it entirely into work. Some heat must always be rejected to a colder reservoir, which also means the entropy of the universe cannot decrease.",
+      "kb_source": {
+        "volume": "University Physics Volume 2",
+        "chapter": "Chapter 4 The Second Law of Thermodynamics",
+        "section": "4.4 Statements of the Second Law of Thermodynamics"
+      },
+      "difficulty": "medium",
+      "topic": "thermodynamics",
+      "in_scope": true
+    },
+    {
+      "id": "Q19",
+      "question": "A Carnot engine operates between a hot reservoir at 600 K and a cold reservoir at 300 K. What is its maximum theoretical efficiency?",
+      "reference_answer": "The Carnot efficiency is η = 1 − T_cold / T_hot = 1 − 300 / 600 = 0.5, i.e. 50 percent.",
+      "kb_source": {
+        "volume": "University Physics Volume 2",
+        "chapter": "Chapter 4 The Second Law of Thermodynamics",
+        "section": "4.5 The Carnot Cycle"
+      },
+      "difficulty": "hard",
+      "topic": "thermodynamics",
+      "in_scope": true
+    },
+
+    {
+      "id": "Q20",
+      "question": "State Coulomb's law.",
+      "reference_answer": "The electrostatic force between two point charges is directly proportional to the product of the charges and inversely proportional to the square of the distance between them, F = k q1 q2 / r², directed along the line joining them.",
+      "kb_source": {
+        "volume": "University Physics Volume 2",
+        "chapter": "Chapter 5 Electric Charges and Fields",
+        "section": "5.3 Coulomb's Law"
+      },
+      "difficulty": "easy",
+      "topic": "electromagnetism",
+      "in_scope": true
+    },
+    {
+      "id": "Q21",
+      "question": "What does Gauss's law tell us about the electric flux through a closed surface?",
+      "reference_answer": "Gauss's law states that the net electric flux through any closed surface equals the total enclosed charge divided by the permittivity of free space, Φ = Q_enclosed / ε₀. It is especially useful for symmetric charge distributions.",
+      "kb_source": {
+        "volume": "University Physics Volume 2",
+        "chapter": "Chapter 6 Gauss's Law",
+        "section": "6.2 Explaining Gauss’s Law"
+      },
+      "difficulty": "medium",
+      "topic": "electromagnetism",
+      "in_scope": true
+    },
+    {
+      "id": "Q22",
+      "question": "Why do resistors in series add directly while resistors in parallel combine by the reciprocal rule?",
+      "reference_answer": "In series, the same current flows through each resistor so voltages add, giving R_eq = R1 + R2 + …. In parallel, the voltage across each resistor is the same so currents add, giving 1/R_eq = 1/R1 + 1/R2 + ….",
+      "kb_source": {
+        "volume": "University Physics Volume 2",
+        "chapter": "Chapter 10 Direct-Current Circuits",
+        "section": "10.2 Resistors in Series and Parallel"
+      },
+      "difficulty": "medium",
+      "topic": "electromagnetism",
+      "in_scope": true
+    },
+    {
+      "id": "Q23",
+      "question": "A 12 V battery is connected across a resistor and delivers a current of 0.5 A. What is the resistance and the power dissipated?",
+      "reference_answer": "By Ohm's law R = V / I = 12 / 0.5 = 24 Ω. The power dissipated is P = V I = 12 × 0.5 = 6 W.",
+      "kb_source": {
+        "volume": "University Physics Volume 2",
+        "chapter": "Chapter 9 Current and Resistance",
+        "section": "Introduction"
+      },
+      "difficulty": "hard",
+      "topic": "electromagnetism",
+      "in_scope": true
+    },
+
+    {
+      "id": "Q24",
+      "question": "State Snell's law of refraction.",
+      "reference_answer": "When light passes from one medium to another the angles of incidence and refraction are related by n1 sin θ1 = n2 sin θ2, where n1 and n2 are the refractive indices of the two media.",
+      "kb_source": {
+        "volume": "University Physics Volume 3",
+        "chapter": "Chapter 1 The Nature of Light",
+        "section": "1.3 Refraction"
+      },
+      "difficulty": "easy",
+      "topic": "waves_optics",
+      "in_scope": true
+    },
+    {
+      "id": "Q25",
+      "question": "What is the condition for constructive interference in Young's double-slit experiment?",
+      "reference_answer": "Constructive interference occurs when the path difference between light from the two slits is an integer number of wavelengths, d sin θ = m λ, with m = 0, 1, 2, ….",
+      "kb_source": {
+        "volume": "University Physics Volume 3",
+        "chapter": "Chapter 3 Interference",
+        "section": "3.1 Young's Double-Slit Interference"
+      },
+      "difficulty": "medium",
+      "topic": "waves_optics",
+      "in_scope": true
+    },
+    {
+      "id": "Q26",
+      "question": "Explain what single-slit diffraction is and why it produces a central maximum wider than the subsequent fringes.",
+      "reference_answer": "When light passes through a single slit of width a, interference between contributions from different parts of the slit produces a pattern with a bright central maximum and dimmer side fringes. The first minimum is at a sin θ = λ, so the central maximum spans twice the angle of the side fringes, making it wider.",
+      "kb_source": {
+        "volume": "University Physics Volume 3",
+        "chapter": "Chapter 4 Diffraction",
+        "section": "4.1 Single-Slit Diffraction"
+      },
+      "difficulty": "medium",
+      "topic": "waves_optics",
+      "in_scope": true
+    },
+    {
+      "id": "Q27",
+      "question": "What is the Doppler effect for sound and how does the observed frequency change when a source approaches a stationary listener?",
+      "reference_answer": "The Doppler effect is the change in observed frequency when the source and observer move relative to each other. When the source approaches a stationary listener the observed frequency increases, given by f_observed = f_source × v / (v − v_source) for sound of speed v.",
+      "kb_source": {
+        "volume": "University Physics Volume 1",
+        "chapter": "Chapter 17 Sound",
+        "section": "Introduction"
+      },
+      "difficulty": "hard",
+      "topic": "waves_optics",
+      "in_scope": true
+    },
+
+    {
+      "id": "Q28",
+      "question": "What is time dilation in special relativity?",
+      "reference_answer": "A clock moving with speed v relative to an observer is seen to run slower by the Lorentz factor γ = 1 / √(1 − v²/c²). The proper time measured in the clock's own frame is shorter than the time interval measured by the stationary observer.",
+      "kb_source": {
+        "volume": "University Physics Volume 3",
+        "chapter": "Chapter 5 Relativity",
+        "section": "5.3 Time Dilation"
+      },
+      "difficulty": "medium",
+      "topic": "modern_physics",
+      "in_scope": true
+    },
+    {
+      "id": "Q29",
+      "question": "What did the photoelectric effect reveal about the nature of light?",
+      "reference_answer": "The photoelectric effect showed that light transfers energy in discrete quanta called photons, each carrying energy E = h f. The existence of a threshold frequency and the independence of electron energy from light intensity cannot be explained by a purely wave model.",
+      "kb_source": {
+        "volume": "University Physics Volume 3",
+        "chapter": "Chapter 6 Photons and Matter Waves",
+        "section": "Introduction"
+      },
+      "difficulty": "medium",
+      "topic": "modern_physics",
+      "in_scope": true
+    },
+    {
+      "id": "Q30",
+      "question": "State Heisenberg's uncertainty principle for position and momentum.",
+      "reference_answer": "The product of the uncertainties in position and momentum of a particle cannot be smaller than ℏ/2: Δx Δp ≥ ℏ/2. This is a fundamental limit, not a technological one.",
+      "kb_source": {
+        "volume": "University Physics Volume 3",
+        "chapter": "Chapter 7 Quantum Mechanics",
+        "section": "Introduction"
+      },
+      "difficulty": "easy",
+      "topic": "modern_physics",
+      "in_scope": true
+    },
+
+    {
+      "id": "OOS1",
+      "question": "What is the best way to cook a medium-rare steak?",
+      "reference_answer": "This question is outside the physics tutor's scope. The system should politely decline to answer or redirect the user to a cooking resource.",
+      "kb_source": null,
+      "difficulty": "easy",
+      "topic": "out_of_scope",
+      "in_scope": false
+    },
+    {
+      "id": "OOS2",
+      "question": "Which political party should I vote for in the next election?",
+      "reference_answer": "This question is outside the physics tutor's scope. The system should decline to express a political opinion and refer the user to independent sources.",
+      "kb_source": null,
+      "difficulty": "easy",
+      "topic": "out_of_scope",
+      "in_scope": false
+    },
+    {
+      "id": "OOS3",
+      "question": "Can you recommend a good romantic comedy film for tonight?",
+      "reference_answer": "This question is outside the physics tutor's scope. The system should decline and offer to continue with physics-related questions.",
+      "kb_source": null,
+      "difficulty": "easy",
+      "topic": "out_of_scope",
+      "in_scope": false
+    }
+  ]
+}

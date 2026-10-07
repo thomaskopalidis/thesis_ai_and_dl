@@ -10,6 +10,33 @@
 
 ---
 
+## D-008 — WER testing: synthetic + recorded audio (2026-10-07)
+
+- **Απόφαση**: Για το STT WER benchmark, για 10 επιλεγμένες ερωτήσεις θα δημιουργηθεί **και** synthetic audio (TTS edge → wav) **και** ηχογραφημένη εκδοχή από τον φοιτητή.
+- **Εναλλακτικές**:
+  - Μόνο synthetic: ιδανικές συνθήκες, μη ρεαλιστικό για end-user physics tutor.
+  - Μόνο real recording: ρεαλιστικό αλλά δεν δίνει καθαρό baseline του Whisper.
+- **Γιατί**:
+  - Το synthetic audio μας δίνει το **lower-bound WER** του Whisper (τι μπορεί σε ιδανικές συνθήκες).
+  - Το real recording μετράει το WER σε ρεαλιστικές συνθήκες (ελληνική προφορά, θόρυβος δωματίου, κινητό μικρόφωνο). Αυτό είναι το πραγματικό scenario χρήσης.
+  - Η διαφορά των δύο αριθμών είναι καθαρή ακαδημαϊκή συνεισφορά («το Whisper small χάνει N% ακρίβεια σε non-native accents»).
+- **Πηγή**: Radford et al., "Robust Speech Recognition via Large-Scale Weak Supervision" (OpenAI, 2022) — όπου φαίνεται WER breakdown ανά accent subset.
+
+---
+
+## D-007 — Schema του eval_questions.json (2026-10-07)
+
+- **Απόφαση**: Κάθε ερώτηση έχει `kb_source` ως **structured object** `{volume, chapter, section}` και όχι ως flat `chunk_id`.
+- **Εναλλακτικές**:
+  - Flat `chunk_id`: π.χ. `"openstax_vol1.pdf:29:2"`.
+- **Γιατί**:
+  - **Σταθερότητα**: αν ξανατρέξουμε ingestion (π.χ. αλλάζουμε chunk size), τα chunk_ids αλλάζουν αλλά τα chapter/section ονόματα παραμένουν σταθερά. Το eval set παραμένει έγκυρο.
+  - **Ανάλυση σε πολλαπλά επίπεδα**: μπορούμε να μετρήσουμε Precision@3 στο chapter level **και** στο section level και να αναφέρουμε και τα δύο ως μέρος των ευρημάτων.
+  - **Human-readable**: Σε περίπτωση ελέγχου από εξεταστές, το chapter name διαβάζεται άμεσα.
+- **Πηγή**: Σχεδιαστική σύμβαση — ανάλογο με structured labels σε datasets όπως SciQ και PubMedQA.
+
+---
+
 ## D-006 — ToC filtering rules για OpenStax PDFs (2026-10-07)
 
 - **Απόφαση**: Στο ingestion των OpenStax PDFs:
