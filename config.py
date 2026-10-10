@@ -13,10 +13,22 @@ HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", 8000))
 DOMAIN = os.getenv("DOMAIN", "physics")
 
-# STT (Whisper) Settings
+# STT (Whisper) Settings — auto-detect device if not specified.
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
-WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cuda")
-# small, cpu -> base 
+
+
+def _auto_whisper_device() -> str:
+    """Return 'cuda' only if a CUDA-enabled torch build is available and sees a device."""
+    try:
+        import torch  # local import to avoid loading torch at module import if unused
+        if torch.cuda.is_available():
+            return "cuda"
+    except Exception:
+        pass
+    return "cpu"
+
+
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE") or _auto_whisper_device()
 # LLM (Ollama) Settings
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")

@@ -79,11 +79,17 @@ def generate_wav2lip_video(audio_path: str) -> str:
     # inference.py writes temp/result.avi relative to cwd
     os.makedirs(os.path.join(WAV2LIP_PATH, "temp"), exist_ok=True)
 
-    # Pass PYTHONPATH so subprocess sees pip --user packages (librosa etc.)
+    # Pass PYTHONPATH so the subprocess sees the project's venv site-packages
+    # and the Wav2Lip repo. On Linux pods we also honour the pip --user site.
     env = os.environ.copy()
-    user_site = "/tmp/.local/lib/python3.10/site-packages"
+    sep = os.pathsep  # ';' on Windows, ':' on Linux
+    paths = [WAV2LIP_PATH]
+    if sys.platform.startswith("linux"):
+        linux_user_site = "/tmp/.local/lib/python3.10/site-packages"
+        if os.path.isdir(linux_user_site):
+            paths.insert(0, linux_user_site)
     existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = f"{user_site}:{WAV2LIP_PATH}:{existing}" if existing else f"{user_site}:{WAV2LIP_PATH}"
+    env["PYTHONPATH"] = sep.join(paths + ([existing] if existing else []))
 
     result = subprocess.run(
         cmd,

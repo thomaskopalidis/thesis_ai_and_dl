@@ -1,8 +1,10 @@
 import sys, os
-# Ensure user-installed packages (/tmp/.local) are visible regardless of how the process started
-_user_site = "/tmp/.local/lib/python3.10/site-packages"
-if _user_site not in sys.path:
-    sys.path.insert(0, _user_site)
+# Ensure user-installed packages (/tmp/.local) are visible on the K8s pod where
+# pip --user is written there. Harmless on Windows (path simply does not exist).
+if sys.platform.startswith("linux"):
+    _user_site = "/tmp/.local/lib/python3.10/site-packages"
+    if _user_site not in sys.path and os.path.isdir(_user_site):
+        sys.path.insert(0, _user_site)
 
 import base64
 import json
