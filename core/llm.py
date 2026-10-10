@@ -35,12 +35,15 @@ def _ollama_chat(messages: list, stream: bool = True, max_tokens: int = 50, mode
         "options": {"num_predict": max_tokens, "temperature": 0.3, "num_ctx": 2048},
         "keep_alive": "30m",
     }
+    # First-token load can take minutes if the model file sits on slow storage
+    # (Google Drive mount). (connect_timeout, read_timeout) decouples the two.
+    timeout = (10, int(os.getenv("OLLAMA_READ_TIMEOUT", "300")))
     try:
         response = requests.post(
             f"{config.OLLAMA_URL}/api/chat",
             json=payload,
             stream=stream,
-            timeout=90,
+            timeout=timeout,
         )
         if not response.ok:
             print(f"   ✗ Ollama error: {response.status_code} - {response.text}")
