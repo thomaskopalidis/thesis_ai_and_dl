@@ -35,8 +35,11 @@ evaluation/outputs/
 *.avi
 *.wav
 *.mp3
-!frontend/assets/wiv2lip.gif
-!alexia_student_ai_assistant.mp4
+
+# Large binary documents — stored outside git (OneDrive/Drive)
+*.pptx
+*.docx
+*.gif
 
 # ===== KB source PDFs (too large; download per README) =====
 Knowledge_base/sources/*.pdf
