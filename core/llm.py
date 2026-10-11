@@ -182,6 +182,8 @@ def _resolve_cloud(model: str | None) -> tuple[str, str, str]:
                 "google": "gemini-3.5-flash",
                 "deepseek": "deepseek-chat",
                 "xai": "grok-code-fast-1",
+                "groq": "llama-3.3-70b-versatile",
+                "openrouter": "deepseek/deepseek-chat-v3:free",
             }.get(provider, "")
     else:
         provider = (CLOUD_PROVIDER or "openai").lower()
@@ -193,6 +195,8 @@ def _resolve_cloud(model: str | None) -> tuple[str, str, str]:
         "google": "GEMINI_API_KEY",
         "deepseek": "DEEPSEEK_API_KEY",
         "xai": "XAI_API_KEY",
+        "groq": "GROQ_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
     }.get(provider, "CLOUD_LLM_API_KEY")
 
     api_key = os.getenv(key_env) or CLOUD_API_KEY
@@ -283,6 +287,40 @@ def _cloud_chat(messages: list, max_tokens: int = 80, model: str | None = None):
             )
             if resp.ok:
                 yield resp.json()["choices"][0]["message"]["content"]
+            else:
+                yield f"Cloud error ({provider}): {resp.status_code} {resp.text[:200]}"
+
+        elif provider == "groq":
+            # Groq is OpenAI-compatible, ultra-fast LPU hardware
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "content-type": "application/json"},
+                json={"model": model_name, "messages": messages, "max_tokens": max_tokens, "stream": False},
+                timeout=60,
+            )
+            if resp.ok:
+                yield resp.json()["choices"][0]["message"]["content"]
+            else:
+                yield f"Cloud error ({provider}): {resp.status_code} {resp.text[:200]}"
+
+        elif provider == "openrouter":
+            # OpenRouter is OpenAI-compatible gateway; supports :free model suffixes
+            resp = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "content-type": "application/json",
+                    "HTTP-Referer": "https://github.com/thomaskopalidis/thesis_ai_and_dl",
+                    "X-Title": "AI Physics Tutor Thesis",
+                },
+                json={"model": model_name, "messages": messages, "max_tokens": max_tokens, "stream": False},
+                timeout=120,  # free models can be slow
+            )
+            if resp.ok:
+                try:
+                    yield resp.json()["choices"][0]["message"]["content"]
+                except (KeyError, IndexError):
+                    yield f"Cloud error ({provider}): unexpected response {str(resp.json())[:200]}"
             else:
                 yield f"Cloud error ({provider}): {resp.status_code} {resp.text[:200]}"
 
