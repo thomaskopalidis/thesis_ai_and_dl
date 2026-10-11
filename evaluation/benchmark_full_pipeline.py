@@ -458,12 +458,14 @@ def main():
                             errors += 1
                             log(f"  {q['id']} r{run_idx}: ERROR {row['error']}", log_path)
                         else:
+                            def _f(v, fmt=".2f"):
+                                return format(v, fmt) if v is not None else "—"
                             log(
                                 f"  {q['id']} r{run_idx}: "
-                                f"rag={row['rag_time_s']:.3f}s "
-                                f"llm={row['llm_total_s']:.2f}s "
-                                f"tts={row['tts_time_s']:.2f}s "
-                                f"hit@3={row['hit_at_3_chapter']}",
+                                f"rag={_f(row.get('rag_time_s'), '.3f')}s "
+                                f"llm={_f(row.get('llm_total_s'))}s "
+                                f"tts={_f(row.get('tts_time_s'))}s "
+                                f"hit@3={row.get('hit_at_3_chapter', '—')}",
                                 log_path,
                             )
                     except Exception as e:
