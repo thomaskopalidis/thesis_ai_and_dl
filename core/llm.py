@@ -157,50 +157,150 @@ SYSTEM_PROMPT = (
 )
 
 
-def _cloud_chat(messages: list, max_tokens: int = 80):
-    """Yields text tokens from a cloud LLM (OpenAI-compatible or Anthropic)."""
-    if not CLOUD_API_KEY:
-        yield "Cloud API key not configured. Set CLOUD_LLM_API_KEY."
+def _resolve_cloud(model: str | None) -> tuple[str, str, str]:
+    """
+    Parse `model` string of the form 'cloud:<provider>:<model_name>' and
+    return (provider, model_name, api_key).
+
+    Supported providers: openai, anthropic, google (gemini), deepseek, xai (grok)
+
+    API keys are looked up per-provider from environment:
+      OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY, XAI_API_KEY
+
+    Falls back to legacy CLOUD_LLM_* env vars if `model` not in the new format.
+    """
+    if model and model.startswith("cloud:"):
+        parts = model.split(":", 2)
+        if len(parts) == 3:
+            _, provider, model_name = parts
+        else:
+            # cloud:provider  → use default model for that provider
+            _, provider = parts
+            model_name = {
+                "openai": "gpt-4o-mini",
+                "anthropic": "claude-haiku-4-5",
+                "google": "gemini-3.5-flash",
+                "deepseek": "deepseek-chat",
+                "xai": "grok-code-fast-1",
+            }.get(provider, "")
+    else:
+        provider = (CLOUD_PROVIDER or "openai").lower()
+        model_name = CLOUD_MODEL
+
+    key_env = {
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "google": "GEMINI_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY",
+        "xai": "XAI_API_KEY",
+    }.get(provider, "CLOUD_LLM_API_KEY")
+
+    api_key = os.getenv(key_env) or CLOUD_API_KEY
+    return provider, model_name, api_key
+
+
+def _cloud_chat(messages: list, max_tokens: int = 80, model: str | None = None):
+    """Yields text tokens from a cloud LLM. Routes by provider parsed from `model`."""
+    provider, model_name, api_key = _resolve_cloud(model)
+
+    if not api_key:
+        yield f"Cloud API key not configured for provider '{provider}'."
         return
 
-    if CLOUD_PROVIDER == "anthropic":
-        try:
+    system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
+    chat_msgs = [m for m in messages if m["role"] != "system"]
+
+    try:
+        if provider == "anthropic":
             resp = requests.post(
                 "https://api.anthropic.com/v1/messages",
                 headers={
-                    "x-api-key": CLOUD_API_KEY,
+                    "x-api-key": api_key,
                     "anthropic-version": "2023-06-01",
                     "content-type": "application/json",
                 },
                 json={
-                    "model": CLOUD_MODEL,
+                    "model": model_name,
                     "max_tokens": max_tokens,
-                    "system": next((m["content"] for m in messages if m["role"] == "system"), ""),
-                    "messages": [m for m in messages if m["role"] != "system"],
+                    "system": system_msg,
+                    "messages": chat_msgs,
                 },
-                timeout=30,
+                timeout=60,
             )
             if resp.ok:
                 yield resp.json()["content"][0]["text"]
             else:
-                yield f"Cloud error: {resp.status_code}"
-        except Exception as e:
-            yield f"Cloud error: {e}"
-    else:
-        # OpenAI-compatible (default)
-        try:
+                yield f"Cloud error ({provider}): {resp.status_code} {resp.text[:200]}"
+
+        elif provider == "google":
+            # Gemini uses a different schema: {contents: [{parts: [{text: ...}], role: ...}]}
+            # System prompt is passed as systemInstruction.
+            contents = []
+            for m in chat_msgs:
+                role = "user" if m["role"] == "user" else "model"
+                contents.append({"role": role, "parts": [{"text": m["content"]}]})
+            payload = {
+                "contents": contents,
+                "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.3},
+            }
+            if system_msg:
+                payload["systemInstruction"] = {"parts": [{"text": system_msg}]}
             resp = requests.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {CLOUD_API_KEY}", "content-type": "application/json"},
-                json={"model": CLOUD_MODEL, "messages": messages, "max_tokens": max_tokens, "stream": False},
-                timeout=30,
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}",
+                json=payload,
+                timeout=60,
+            )
+            if resp.ok:
+                data = resp.json()
+                try:
+                    text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    yield text
+                except (KeyError, IndexError):
+                    yield f"Cloud error ({provider}): unexpected response {str(data)[:200]}"
+            else:
+                yield f"Cloud error ({provider}): {resp.status_code} {resp.text[:200]}"
+
+        elif provider == "deepseek":
+            # DeepSeek is OpenAI-compatible
+            resp = requests.post(
+                "https://api.deepseek.com/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "content-type": "application/json"},
+                json={"model": model_name, "messages": messages, "max_tokens": max_tokens, "stream": False},
+                timeout=60,
             )
             if resp.ok:
                 yield resp.json()["choices"][0]["message"]["content"]
             else:
-                yield f"Cloud error: {resp.status_code}"
-        except Exception as e:
-            yield f"Cloud error: {e}"
+                yield f"Cloud error ({provider}): {resp.status_code} {resp.text[:200]}"
+
+        elif provider == "xai":
+            # xAI Grok is also OpenAI-compatible
+            resp = requests.post(
+                "https://api.x.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "content-type": "application/json"},
+                json={"model": model_name, "messages": messages, "max_tokens": max_tokens, "stream": False},
+                timeout=60,
+            )
+            if resp.ok:
+                yield resp.json()["choices"][0]["message"]["content"]
+            else:
+                yield f"Cloud error ({provider}): {resp.status_code} {resp.text[:200]}"
+
+        else:
+            # OpenAI (default)
+            resp = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "content-type": "application/json"},
+                json={"model": model_name, "messages": messages, "max_tokens": max_tokens, "stream": False},
+                timeout=60,
+            )
+            if resp.ok:
+                yield resp.json()["choices"][0]["message"]["content"]
+            else:
+                yield f"Cloud error ({provider}): {resp.status_code} {resp.text[:200]}"
+
+    except Exception as e:
+        yield f"Cloud error ({provider}): {type(e).__name__}: {e}"
 
 
 def stream_llm_response(prompt: str, history: "ConversationHistory | None" = None, context: str = "", model: str | None = None):
@@ -221,7 +321,7 @@ def stream_llm_response(prompt: str, history: "ConversationHistory | None" = Non
     full_response = ""
 
     if use_cloud:
-        for token in _cloud_chat(messages, max_tokens=80):
+        for token in _cloud_chat(messages, max_tokens=80, model=model):
             full_response += token
             yield token
     else:
