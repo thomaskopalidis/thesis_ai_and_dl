@@ -95,6 +95,7 @@ async def websocket_endpoint(websocket: WebSocket):
     lipsync_engine = _DEFAULT_ENGINE
     tts_engine = _DEFAULT_TTS
     llm_model = config.OLLAMA_MODEL
+    avatar_mode = False
     history = ConversationHistory()
 
     try:
@@ -124,6 +125,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 print(f"LLM model set to: {llm_model}")
                 await websocket.send_json({"type": "model_ack", "model": llm_model})
 
+            # 0d. AVATAR MODE TOGGLE (skip lipsync when off → audio-only)
+            elif input_type == "set_mode":
+                avatar_mode = bool(payload.get("avatar", False))
+                print(f"Avatar mode set to: {avatar_mode}")
+                await websocket.send_json({"type": "mode_ack", "avatar": avatar_mode})
+
             # CLEAR HISTORY
             elif input_type == "clear_history":
                 history.clear()
@@ -135,7 +142,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 user_message = payload.get("data")
                 print(f"User (text): {user_message}")
                 rag_context = retrieve(user_message)
-                await process_and_stream_response(user_message, websocket, lipsync_engine, history, rag_context, tts_engine, llm_model)
+                await process_and_stream_response(user_message, websocket, lipsync_engine, history, rag_context, tts_engine, llm_model, avatar_mode)
 
             # 2. AUDIO CHUNKS (streaming from microphone)
             elif input_type == "audio_chunk":
@@ -157,7 +164,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     if transcript.strip():
                         await websocket.send_json({"type": "transcript", "data": transcript})
                         rag_context = retrieve(transcript)
-                        await process_and_stream_response(transcript, websocket, lipsync_engine, history, rag_context, tts_engine, llm_model)
+                        await process_and_stream_response(transcript, websocket, lipsync_engine, history, rag_context, tts_engine, llm_model, avatar_mode)
 
                 audio_buffer.clear()
 
@@ -178,7 +185,7 @@ def _run_lipsync(engine: str, audio_path: str) -> str:
 _ASSETS_DIR = os.path.join(os.path.dirname(__file__), "frontend", "assets")
 
 
-async def process_and_stream_response(message: str, websocket: WebSocket, lipsync_engine: str = "wav2lip", history: "ConversationHistory | None" = None, rag_context: str = "", tts_engine: str = "edge", llm_model: str = ""):
+async def process_and_stream_response(message: str, websocket: WebSocket, lipsync_engine: str = "wav2lip", history: "ConversationHistory | None" = None, rag_context: str = "", tts_engine: str = "edge", llm_model: str = "", avatar_mode: bool = False):
     """Core pipeline: sends text to the LLM and streams lip-synced avatar output."""
     current_sentence = ""
 
@@ -208,6 +215,12 @@ async def process_and_stream_response(message: str, websocket: WebSocket, lipsyn
         print(f"[TIMING] TTS({tts_engine}) sentence #{idx}{label}: {tts_elapsed:.2f}s")
 
         if not audio_bytes:
+            return
+
+        # Avatar OFF → audio-only (skip Wav2Lip entirely, huge latency win)
+        if not avatar_mode:
+            audio_b64 = base64.b64encode(bytes(audio_bytes)).decode("utf-8")
+            await websocket.send_json({"type": "audio_chunk", "data": audio_b64})
             return
 
         tmp_audio_path = None
