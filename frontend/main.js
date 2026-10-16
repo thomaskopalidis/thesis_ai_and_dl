@@ -1,4 +1,4 @@
-let ws = new WebSocket(`ws://${window.location.host}/ws/chat`);
+let ws = new WebSocket(`${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/chat`);
 let mediaRecorder;
 let audioQueue = [];
 let videoQueue = [];
