@@ -13,7 +13,7 @@ chromadb==0.5.15
 sentence-transformers==3.2.1
 
 # Text-to-Speech (TTS) Layer
-edge-tts==7.2.8
+edge-tts==7.3.1
 
 # Utilities & Math
 requests==2.32.3
