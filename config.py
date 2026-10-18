@@ -53,7 +53,7 @@ RAG_TOP_K = int(os.getenv("RAG_TOP_K", 3))
 RAG_EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 
 # Avatar (SadTalker) Settings
-AVATAR_IMAGE_PATH = os.getenv("AVATAR_IMAGE_PATH", str(BASE_DIR / "frontend" / "assets" / "teacher_avatar.jpg"))
+AVATAR_IMAGE_PATH = os.getenv("AVATAR_IMAGE_PATH", str(BASE_DIR / "frontend" / "assets" / "teacher_avatar_v2.jpg"))
 
 
 # Wav2Lip (lip-sync) settings

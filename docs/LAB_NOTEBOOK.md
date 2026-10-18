@@ -60,6 +60,7 @@ MSc AI & Deep Learning, University of West Attica.
   - Policy: cache στο `<THESIS_ROOT>/audio/synthetic/` στο Drive με `audio_manifest.json`. Σε κάθε session: hash-verify + copy. Αν λείπει κάτι → ERROR (όχι σιωπηλό regen). Rebuild μόνο με `--regenerate`, που **αρχειοθετεί** το παλιό σετ σε `synthetic_archived_<timestamp>/` (δεν σβήνεται ποτέ).
   - Manifest fields ανά WAV: `sha256`, `size_bytes`, `sample_rate_hz`, `channels`, `duration_s`. Top-level: `created_utc`, `edge_tts_version`, `voice`.
   - Το Cell 18.5 του `colab/thesis_colab_clean.ipynb` ενημερώθηκε: καλεί το helper (`--drive <path>`), ρίχνει `RuntimeError` αν το script αποτύχει (κανένα silent fallback).
+  - **Επιβεβαίωση στο Colab**: 1η εκτέλεση → `[FIRST RUN]` + generate + `Mirrored WAVs + transcripts + manifest to Drive`. 2η εκτέλεση (ίδιο ή νέο runtime) → `Copied N files from Drive, SHA-256 verified.` ✅
 - **Acceptance tests που πέρασαν**:
   - Import test: `python -c "from core import avatar_engine; print(avatar_engine.available_engines())"` → `['wav2lip', ...]`.
   - App start: `[ENGINE] Available: ['wav2lip', ...] | Default: wav2lip`, καμία import error από τα παλιά modules.

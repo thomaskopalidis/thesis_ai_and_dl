@@ -1,4 +1,13 @@
-"""core/engines/sadtalker.py — SadTalker adapter (subprocess, image-only)."""
+"""core/engines/sadtalker.py — SadTalker adapter (subprocess, image-only).
+
+Parametric constructor so the engine can be reused for:
+- live app:   SadTalkerEngine() with its historical defaults
+- idle video: SadTalkerEngine(still=False, preprocess="full", enhancer=None, ...)
+
+Working resolution is aspect-preserving (thumbnail max side 1200 px) so that
+portrait avatars like teacher_avatar_v2.jpg (1792x2400) are not squashed into
+a square. See D-016.
+"""
 from __future__ import annotations
 
 import glob
@@ -23,22 +32,43 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "..", ".."))
 SADTALKER_PATH = os.path.join(PROJECT_ROOT, "SadTalker")
 
+# Working resolution: max side 1200 px, aspect-preserved (D-016).
+MAX_WORKING_SIDE = 1200
+
 
 @register("sadtalker")
 class SadTalkerEngine:
     name = "sadtalker"
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        still: bool = True,                     # app default
+        preprocess: str = "crop",               # app default
+        enhancer: Optional[str] = "gfpgan",     # app default
+        size: int = 256,
+        pose_style: int = 0,
+        expression_scale: float = 1.0,
+    ) -> None:
+        self.still = still
+        self.preprocess = preprocess
+        self.enhancer = enhancer  # None | "gfpgan" | "RestoreFormer"
+        self.size = size
+        self.pose_style = pose_style
+        self.expression_scale = expression_scale
+
         self._prepared_path: Optional[str] = None
         self._prepared_source: Optional[str] = None
 
+    # ── availability ─────────────────────────────────────────────────────
     def is_available(self) -> bool:
         return (
             os.path.isfile(os.path.join(SADTALKER_PATH, "inference.py"))
             and os.path.isdir(os.path.join(SADTALKER_PATH, "checkpoints"))
         )
 
+    # ── one-off source image prep (aspect-preserving) ───────────────────
     def prepare(self, base_path: str) -> float:
+        base_path = os.path.abspath(base_path)   # subprocess runs with cwd=SADTALKER_PATH
         kind = detect_base_kind(base_path)
         if kind != "image":
             raise ValueError(
@@ -62,20 +92,20 @@ class SadTalkerEngine:
         img = Image.open(base_path)
         if img.mode != "RGB":
             img = img.convert("RGB")
-        w, h = img.size
-        s = min(w, h)
-        img = img.crop(((w - s) // 2, (h - s) // 2, (w + s) // 2, (h + s) // 2))
-        img = img.resize((512, 512), Image.LANCZOS)
 
-        out = tempfile.NamedTemporaryFile(suffix="_sadtalker_face.jpg", delete=False)
+        # Aspect-preserving fit inside MAX_WORKING_SIDE box (D-016).
+        img.thumbnail((MAX_WORKING_SIDE, MAX_WORKING_SIDE), Image.LANCZOS)
+
+        out = tempfile.NamedTemporaryFile(suffix="_sadtalker_src.jpg", delete=False)
         img.save(out.name, "JPEG", quality=95)
         out.close()
 
         self._prepared_path = out.name
         self._prepared_source = base_path
-        print(f"[SadTalker] Prepared image: {out.name}")
+        print(f"[SadTalker] Prepared source: {out.name} ({img.size[0]}x{img.size[1]})")
         return time.perf_counter() - t
 
+    # ── per-sentence inference ──────────────────────────────────────────
     def generate(
         self,
         audio_path: str,
@@ -85,34 +115,38 @@ class SadTalkerEngine:
     ) -> LipsyncResult:
         if not self.is_available():
             raise FileNotFoundError("SadTalker not installed.")
-        # Subprocess runs with cwd=SADTALKER_PATH, so all paths must be absolute
+
+        # Subprocess runs with cwd=SADTALKER_PATH: all paths must be absolute (Bug 1, Step 0).
         audio_path = os.path.abspath(audio_path)
         if base_path is not None:
             base_path = os.path.abspath(base_path)
         if out_path is not None:
             out_path = os.path.abspath(out_path)
-            
-        # Fix #1: honor last-prepared base
+
         prepare_t = 0.0
         if base_path is not None:
             prepare_t = self.prepare(base_path)
         elif self._prepared_path is None:
             prepare_t = self.prepare(config.AVATAR_IMAGE_PATH)
 
-        face_path = self._prepared_path
+        src_path = self._prepared_path
         result_dir = tempfile.mkdtemp(prefix="sadtalker_")
 
         cmd = [
             sys.executable, os.path.join(SADTALKER_PATH, "inference.py"),
             "--driven_audio", audio_path,
-            "--source_image", face_path,
+            "--source_image", src_path,
             "--checkpoint_dir", os.path.join(SADTALKER_PATH, "checkpoints"),
             "--result_dir", result_dir,
-            "--still",
-            "--preprocess", "crop",
-            "--size", "256",
-            "--enhancer", "gfpgan",
+            "--preprocess", self.preprocess,
+            "--size", str(self.size),
+            "--pose_style", str(self.pose_style),
+            "--expression_scale", str(self.expression_scale),
         ]
+        if self.still:
+            cmd.append("--still")
+        if self.enhancer:
+            cmd += ["--enhancer", self.enhancer]
 
         with VRAMSampler() as vram:
             t0 = time.perf_counter()
@@ -123,7 +157,9 @@ class SadTalkerEngine:
 
         if res.returncode != 0:
             raise RuntimeError(
-                f"SadTalker failed (exit {res.returncode}).\n{res.stderr[-2000:]}"
+                f"SadTalker failed (exit {res.returncode}).\n"
+                f"--- stdout ---\n{res.stdout[-1500:]}\n"
+                f"--- stderr ---\n{res.stderr[-2000:]}"
             )
 
         mp4s = glob.glob(os.path.join(result_dir, "**", "*.mp4"), recursive=True)
@@ -150,4 +186,12 @@ class SadTalkerEngine:
             engine=self.name,
             base_kind="image",
             is_warmup=is_warmup,
+            extra={
+                "still": self.still,
+                "preprocess": self.preprocess,
+                "enhancer": self.enhancer,
+                "size": self.size,
+                "pose_style": self.pose_style,
+                "expression_scale": self.expression_scale,
+            },
         )
