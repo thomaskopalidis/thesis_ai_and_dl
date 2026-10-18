@@ -113,6 +113,33 @@ MSc AI & Deep Learning, University of West Attica.
   - **Κεφ. 6 §Idle avatar**: περιγραφή 4-stage επιλογής (preprocess → audio → duration → enhancer) ως παράδειγμα methodology όπου κάθε απόφαση έχει μετρηθεί ή αιτιολογηθεί οπτικά.
   - **Κεφ. 7 §Latency**: `GFPGAN rejected` ως trade-off σημείο — ανάλυση output vs χρόνος παραγωγής.
 - **Επόμενο**: ΒΗΜΑ 2 — MuseTalk v1.5 persistent worker + lip-sync πάνω στο frozen idle video.
+
+---
+
+## [2026-10-18] UX αλλαγές για πιο φυσική παρουσίαση δασκάλας (D-017) + ολόκληρη απάντηση στο saved video
+
+- **Στόχος**: Πιο ρεαλιστική συμπεριφορά της δασκάλας στο live app (voice, pace, pauses, κάδρο) και αποθήκευση ολόκληρης της απάντησης στο `last_response.mp4` αντί μόνο της 1ης πρότασης.
+- **Αλλαγές D-017**:
+  - `config.py`: `TTS_VOICE` default → `en-GB-SoniaNeural` (από Jenny-US). Νέο `TTS_RATE` default `-5%`.
+  - `core/tts.py`: `edge_tts.Communicate(..., rate=config.TTS_RATE)`.
+  - `app.py`, sentence boundary: hard `. ! ? \n`, soft `, ; :` όταν `len > 100`, forced μόνο `len > 200`. Αντικαθιστά τον παλιό hard-cut στα 80 chars.
+  - `frontend/main.js`: `PAUSE_MS = 300`; `src.onended = () => setTimeout(playNextAudio, PAUSE_MS)`.
+  - `frontend/index.html`: avatar `<img src>` → `teacher_avatar_v2_ui.jpg` (512×512, 42 KB thumbnail). CSS `#avatar-container img, #avatar-container video` → προσθήκη `object-position: 50% 0%`.
+  - **Το backend δεν αλλάζει** source image — `config.AVATAR_IMAGE_PATH` παραμένει το full-res `teacher_avatar_v2.jpg` που χρησιμοποιείται από τα engines.
+- **Αλλαγές για το saved video (ολόκληρη απάντηση)**:
+  - `app.py` imports: προστέθηκαν `shutil`, `subprocess`.
+  - `process_and_stream_response` start: δημιουργείται `seg_dir = tempfile.mkdtemp(prefix="resp_")` και `sentence_videos: list[str] = []`.
+  - `_process_sentence`, μετά το read των video_bytes: αντιγραφή σε `seg_dir/seg_{idx:03d}.mp4` και append στο `sentence_videos`. **Αφαιρέθηκε** το προηγούμενο block "Save first sentence video to assets".
+  - Μετά το trailing sentence και πριν το SUMMARY: ffmpeg concat demuxer των `sentence_videos` σε `_ASSETS_DIR/last_response.mp4` με `-c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart`. Αν 1 segment → `shutil.copyfile`. Χρόνος μετριέται ξεχωριστά και τυπώνεται ως `[TIMING] concat: X.XXs` — **ΔΕΝ** προστίθεται στο `total_lipsync_time`. Σε αποτυχία: `[SAVE] concat failed: ...` print και συνέχεια. `shutil.rmtree(seg_dir, ignore_errors=True)` στο τέλος.
+  - `frontend/main.js` handler `video_saved`: αφαιρέθηκαν (i) το autoplay του `savedVideoEl` (δεν ακούγεται δεύτερη φορά η απάντηση), (ii) το replay του βίντεο στο avatar circle (`if (avatarMode) {...}`). Το download link διατηρείται.
+- **Επίπτωση στη μεθοδολογία**:
+  - **Οι χρόνοι TTS προηγούμενων benchmarks έγιναν με Jenny-US και default rate (0%)**. Δεν συγκρίνονται 1:1 με μετρήσεις που θα γίνουν με Sonia-GB και `-5%`. Αν χρειαστεί σύγκριση, θα ξανατρέξει το TTS benchmark με τις νέες τιμές.
+  - **Το WER audio set (D-014) ΔΕΝ άλλαξε** — το `generate_wer_audio.py` παραμένει με Jenny-US ως παγωμένο reference set, όπως υπαγορεύει το D-014.
+  - Ο χρόνος `concat` είναι νέα μετρήσιμη συνιστώσα του end-to-end latency — μετριέται ξεχωριστά. Για 1 segment είναι τυπικά <0.1 s (copyfile). Για πολλαπλά segments εξαρτάται από το πλήθος/διάρκεια (ffmpeg re-encode).
+- **Pending επαληθεύσεις**:
+  - Οπτικός έλεγχος φωνής Sonia + pacing στο live app.
+  - Έλεγχος ότι το saved video περιέχει όλες τις προτάσεις (όχι μόνο την 1η) και παίζει καθαρά στο browser.
+  - Έλεγχος ότι το UI thumbnail φορτώνει αισθητά γρηγορότερα.
 - **Acceptance tests που πέρασαν**:
   - Import test: `python -c "from core import avatar_engine; print(avatar_engine.available_engines())"` → `['wav2lip', ...]`.
   - App start: `[ENGINE] Available: ['wav2lip', ...] | Default: wav2lip`, καμία import error από τα παλιά modules.

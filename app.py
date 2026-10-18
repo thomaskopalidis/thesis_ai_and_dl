@@ -12,6 +12,8 @@ import time
 import tempfile
 import asyncio
 import os
+import shutil
+import subprocess
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -181,6 +183,10 @@ async def process_and_stream_response(message: str, websocket: WebSocket, lipsyn
     sentence_count = 0
     saved_video_url = None
 
+    # Collect per-sentence videos → concat into one last_response.mp4 at the end.
+    seg_dir = tempfile.mkdtemp(prefix="resp_")
+    sentence_videos: list[str] = []
+
     print(f"Assistant is thinking & speaking... [engine: {lipsync_engine}]")
 
     loop = asyncio.get_event_loop()
@@ -226,17 +232,15 @@ async def process_and_stream_response(message: str, websocket: WebSocket, lipsyn
             video_b64 = base64.b64encode(video_bytes).decode("utf-8")
             await websocket.send_json({"type": "video_chunk", "data": video_b64})
 
-            # Save first sentence video to assets for persistent display
-            nonlocal saved_video_url
-            if saved_video_url is None:
-                try:
-                    os.makedirs(_ASSETS_DIR, exist_ok=True)
-                    saved_path = os.path.join(_ASSETS_DIR, "last_response.mp4")
-                    with open(saved_path, "wb") as sf:
-                        sf.write(video_bytes)
-                    saved_video_url = "/app/assets/last_response.mp4"
-                except Exception as save_err:
-                    print(f"[SAVE] Could not save video: {save_err}")
+            # Keep a copy of this sentence video for the end-of-response concat
+            # (video_path gets deleted in the finally block below).
+            try:
+                seg_path = os.path.join(seg_dir, f"seg_{idx:03d}.mp4")
+                with open(seg_path, "wb") as sf:
+                    sf.write(video_bytes)
+                sentence_videos.append(seg_path)
+            except Exception as save_err:
+                print(f"[SAVE] Could not stash segment #{idx}: {save_err}")
 
         except Exception as e:
             err_msg = str(e)
@@ -261,7 +265,12 @@ async def process_and_stream_response(message: str, websocket: WebSocket, lipsyn
 
         current_sentence += token
 
-        if token in [".", "!", "?", "\n"] or len(current_sentence) > 80:
+        # Sentence boundary rules (D-017): primary at . ! ? \n; soft break at , ; :
+        # when the chunk exceeds 100 chars; forced cut only above 200 chars.
+        _hard = token in (".", "!", "?", "\n")
+        _soft = token in (",", ";", ":") and len(current_sentence) > 100
+        _forced = len(current_sentence) > 200
+        if _hard or _soft or _forced:
             sentence_to_speak = current_sentence.strip()
             if sentence_to_speak:
                 sentence_count += 1
@@ -274,6 +283,39 @@ async def process_and_stream_response(message: str, websocket: WebSocket, lipsyn
     if current_sentence.strip():
         sentence_count += 1
         await _process_sentence(current_sentence.strip(), sentence_count, " (trailing)")
+
+    # 2b. Concatenate all sentence videos into one last_response.mp4
+    #     (measured separately — NOT counted in lipsync_total).
+    if sentence_videos:
+        try:
+            os.makedirs(_ASSETS_DIR, exist_ok=True)
+            out_path = os.path.join(_ASSETS_DIR, "last_response.mp4")
+            concat_start = time.time()
+
+            if len(sentence_videos) == 1:
+                shutil.copyfile(sentence_videos[0], out_path)
+            else:
+                list_path = os.path.join(seg_dir, "concat.txt")
+                with open(list_path, "w", encoding="utf-8") as lf:
+                    for p in sentence_videos:
+                        # ffmpeg concat demuxer requires POSIX-style forward slashes in quoted paths
+                        lf.write(f"file '{p.replace(os.sep, '/')}'\n")
+                r = subprocess.run(
+                    ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path,
+                     "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                     "-c:a", "aac", "-movflags", "+faststart", out_path],
+                    capture_output=True, text=True,
+                )
+                if r.returncode != 0:
+                    raise RuntimeError(f"ffmpeg concat exit {r.returncode}: {r.stderr[-800:]}")
+
+            concat_elapsed = time.time() - concat_start
+            print(f"[TIMING] concat: {concat_elapsed:.2f}s  ({len(sentence_videos)} segment(s))")
+            saved_video_url = "/app/assets/last_response.mp4"
+        except Exception as save_err:
+            print(f"[SAVE] concat failed: {save_err}")
+
+    shutil.rmtree(seg_dir, ignore_errors=True)
 
     total_elapsed = time.time() - pipeline_start
     avg_lipsync = total_lipsync_time / sentence_count if sentence_count else 0.0

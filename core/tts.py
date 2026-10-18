@@ -21,7 +21,7 @@ async def text_to_speech_stream(text: str, voice: str = None):
     selected_voice = voice or config.TTS_VOICE
 
     try:
-        communicate = edge_tts.Communicate(text, selected_voice)
+        communicate = edge_tts.Communicate(text, selected_voice, rate=config.TTS_RATE)
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 yield chunk["data"]

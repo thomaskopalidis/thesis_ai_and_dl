@@ -198,23 +198,11 @@ ws.onmessage = async (event) => {
         const ts = Date.now();
         const url = msg.url + "?t=" + ts;
 
-        // Show in dedicated saved-video panel (always visible, with controls)
+        // Show in dedicated saved-video panel with controls, no autoplay
+        // (avoids replaying the answer a second time after the live stream).
         savedVideoEl.src = url;
         savedVideoWrap.style.display = "block";
         savedVideoEl.load();
-        savedVideoEl.play().catch(e => console.warn("Saved video play error:", e));
-
-        // Also play in avatar circle if avatar mode is on
-        if (avatarMode) {
-            avatarVideo.src = url;
-            avatarVideo.style.display = "block";
-            avatarImage.style.display = "none";
-            avatarVideo.onended = () => {
-                avatarVideo.style.display = "none";
-                avatarImage.style.display = "block";
-            };
-            avatarVideo.play().catch(() => {});
-        }
 
         // Download link in chat
         const note = document.createElement("div");
@@ -301,6 +289,7 @@ micBtn.onmouseup = () => {
 };
 
 // ── Audio playback ────────────────────────────────────────────────
+const PAUSE_MS = 300;   // breathing pause between sentence chunks (D-017)
 async function playNextAudio() {
     if (audioQueue.length === 0) { isPlaying = false; avatar.classList.remove("talking"); return; }
     isPlaying = true;
@@ -314,7 +303,7 @@ async function playNextAudio() {
         const src = audioCtx.createBufferSource();
         src.buffer = buf;
         src.connect(audioCtx.destination);
-        src.onended = playNextAudio;
+        src.onended = () => setTimeout(playNextAudio, PAUSE_MS);
         src.start(0);
     } catch (e) { console.error("Audio decode error", e); playNextAudio(); }
 }

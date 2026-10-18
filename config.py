@@ -33,8 +33,9 @@ WHISPER_DEVICE = os.getenv("WHISPER_DEVICE") or _auto_whisper_device()
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 
-# TTS Settings
-TTS_VOICE = os.getenv("TTS_VOICE", "en-US-JennyNeural")
+# TTS Settings (D-017)
+TTS_VOICE = os.getenv("TTS_VOICE", "en-GB-SoniaNeural")
+TTS_RATE  = os.getenv("TTS_RATE",  "-5%")
 
 
 # Execution & SSH Server Settings

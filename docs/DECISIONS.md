@@ -12,6 +12,29 @@
 
 ---
 
+## D-017 — TTS voice/rate, pause μεταξύ προτάσεων, κανόνας διάσπασης, UI thumbnail (2026-10-18)
+
+- **Απόφαση**: Συνδυασμένες αλλαγές για πιο φυσική παρουσίαση της δασκάλας στο live app:
+  1. **Voice**: `TTS_VOICE` default `en-GB-SoniaNeural` (Microsoft Edge-TTS, Βρετανικό θηλυκό). Προηγούμενη: `en-US-JennyNeural`.
+  2. **Rate**: νέα παράμετρος `TTS_RATE` default `-5%` (ελαφρά πιο αργή από το native) — περνιέται στο `edge_tts.Communicate(..., rate=config.TTS_RATE)`.
+  3. **Pause μεταξύ sentence chunks**: 300 ms στο frontend (`PAUSE_MS = 300`) — ανάσα ανάμεσα στα TTS clips, όχι απευθείας συρραφή που ακούγεται «βιαστική».
+  4. **Κανόνας διάσπασης στο app.py**: hard break στα `. ! ? \n`, soft break στα `, ; :` **μόνο όταν** το κομμάτι ξεπερνά τους **100 χαρακτήρες**, forced cut **μόνο πάνω από 200 χαρακτήρες**. Αντικαθιστά το προηγούμενο «hard-cut στα 80 chars» που κόβει μέσα σε λέξεις ή πριν ολοκληρωθεί σκέψη.
+  5. **UI thumbnail**: `frontend/assets/teacher_avatar_v2_ui.jpg` (512×512, 42 KB) στο HTML `<img>` του avatar circle. Το backend (`config.AVATAR_IMAGE_PATH`) παραμένει στο full-res `teacher_avatar_v2.jpg` — τα engines δεν επηρεάζονται. Επίσης προστέθηκε `object-position: 50% 0%` στο CSS για να φαίνεται ο χώρος πάνω από το κεφάλι όταν το avatar περιέχεται σε circle (ανοίγει καλύτερη αίσθηση κάδρου και όταν παίζει βίντεο).
+- **Εναλλακτικές που εξετάστηκαν**:
+  - **Voice**: Jenny (US) ακούγεται γενική, όχι καθαρά academic. Sonia (GB) έχει πιο ρητό ακαδημαϊκό register.
+  - **Rate**: default (0%) → πολύ γρήγορη για ακουστική ακολούθηση φυσικών όρων· -10% → μηχανική, υπερβολικά slow· **-5%** = αισθητικός συμβιβασμός (οπτικά/ακουστικά αξιολογήθηκε στο live app).
+  - **Pause**: 0 ms → απάντηση μοιάζει με μία ανάσα· 500 ms → αισθάνεται πολύ αργή. **300 ms** είναι ο γνωστός «breathing beat» σε voice UX.
+  - **Κανόνας διάσπασης στα 80 chars**: μπορεί να κόβει στη μέση φράσης. Νέος κανόνας προκρίνει γραμματικά όρια.
+- **Γιατί**:
+  - Η φωνή/ρυθμός/παύση είναι καθαρές UX αλλαγές — δεν αλλάζουν τίποτα στο pipeline αρχιτεκτονικά.
+  - Ο νέος κανόνας διάσπασης βελτιώνει φυσικότητα TTS output και μειώνει cuts μέσα σε όρο φυσικής.
+  - Το UI thumbnail μειώνει το payload του HTML (2.7 MB → 42 KB) χωρίς να αγγίζει τα engines.
+- **Σημαντική επίπτωση στη μεθοδολογία**:
+  - **Οι χρόνοι TTS των παλαιότερων benchmarks έγιναν με Jenny χωρίς rate (default 0%)**. ΔΕΝ συγκρίνονται 1:1 με νέες μετρήσεις που θα γίνουν με Sonia + `-5%`. Αν χρειαστεί σύγκριση, πρέπει να ξανατρέξει το TTS benchmark με τις νέες τιμές.
+  - **Το παγωμένο WER audio set (D-014) παραμένει με Jenny**: το `evaluation/generate_wer_audio.py` ΔΕΝ άλλαξε (frozen reference set). Αν αλλάξει η φωνή/ρυθμός για το WER, θα γίνει `--regenerate` με archive του παλιού set.
+
+---
+
 ## D-016 — Αλλαγή avatar image σε v2 (AI-generated, 1792×2400) (2026-10-18)
 
 - **Απόφαση**: Από εδώ και πέρα όλα τα avatar engines χρησιμοποιούν το `frontend/assets/teacher_avatar_v2.jpg` (1792×2400, portrait, AI-generated). Η παλιά `teacher_avatar.jpg` (263×350) παραμένει στο repo ως ιστορικό baseline, δεν χρησιμοποιείται σε νέα runs.
