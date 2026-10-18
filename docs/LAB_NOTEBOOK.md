@@ -31,8 +31,35 @@ MSc AI & Deep Learning, University of West Attica.
   - `prepare_time_s = 1.67 s` (image resize/crop, μία φορά)
   - `encode_time_s = 0.27 s`
   - `load_time_s = NaN` (subprocess bundles load+infer)
-- **Μέτρηση — Test 3b** (Wav2Lip σε video base, idle 3 s @ 25 fps):
-  - [TODO: συμπλήρωσε μετά την εκτέλεση. Αναμένεται `base_kind=video`, `--static` να ΜΗΝ εμφανίζεται στο Wav2Lip command, πολλά frames στην face detection.]
+- **Μέτρηση — Test 3b** (Wav2Lip σε video base):
+  - **Συνθήκες**:
+    - GPU: Colab T4 (16 GB)
+    - Base: 3 s / 75 frames, `-vf "scale=-2:512"`, 25 fps, h264 yuv420p (`_test_video.mp4`)
+    - Audio: `_test_audio.wav` (**όχι** `Q05.wav` — δεν υπήρχε στο Colab, βλ. εκκρεμές WER script fix)
+    - Ollama: **πιθανότατα σε λειτουργία** (ξεκίνησε στην Ενότητα 1 του notebook πριν το test), άρα η μέτρηση `peak_vram_mb` **δεν είναι αξιόπιστη** για σύγκριση avatar engines (παραβιάζει το D-011).
+  - **Ωμά νούμερα** (όπως τυπώθηκαν):
+    - Available engines: `['wav2lip']` (SadTalker μη εγκατεστημένο στο Colab image — αναμενόμενο)
+    - `[Wav2Lip] Prepared video: /content/thesis_ai_and_dl/_test_video.mp4` → video base cached, καμία re-encode (ήταν ήδη 25 fps)
+    - `base_kind = video` ✅
+    - `time_s = 52.34 s`
+    - `video_duration_s = 2.76 s`
+    - `fps = 25.0`
+    - `peak_vram_mb = 10 096 MB` (με Ollama ζωντανό — μη αξιόπιστο)
+    - `encode_time_s = 0.22 s`
+  - **Τι επιβεβαιώθηκε**:
+    - `detect_base_kind` επιστρέφει `"video"` για .mp4.
+    - Το `--static` **δεν** εμφανίστηκε στο Wav2Lip command (bool argparse gotcha αποφεύχθηκε).
+    - Το output video αναπαράγεται σωστά στο Colab (0:03/0:03 στον embedded player).
+  - **Τι ΔΕΝ επιβεβαιώθηκε**:
+    - Σύγκριση με το Test 3a δεν γίνεται: διαφορετικό GPU (GTX 1650 vs T4), διαφορετική βάση (image vs video), διαφορετικό audio.
+    - **Υπόθεση προς έλεγχο στο ΒΗΜΑ 2**: ο χρόνος `time_s` κυριαρχείται από το model load του subprocess (cold-start, D-012). Μέθοδος ελέγχου: cold subprocess vs warm persistent worker, στο **ίδιο GPU, ίδιο audio, ίδια βάση**.
+- **Σημείωση για ΒΗΜΑ 4**: τα engines θα μετρηθούν **διαδοχικά** (όχι ταυτόχρονα), με Ollama **σταματημένο** (D-011), ώστε το `peak_vram_mb` να είναι αξιόπιστο.
+- **Υστερόχρονη διευκρίνιση — `generate_wer_audio.py`**: Η αρχική αποτυχία («το Q05.wav δεν δημιουργήθηκε») **δεν ήταν bug του script**. Σε επανεκτέλεση στο Colab (μετά από `pip install -U edge-tts` στην ίδια session), το script έτρεξε με exit code 0 και παρήγαγε και τα 10 WAV (Q01, Q03, Q05, Q07, Q10, Q13, Q16, Q22, Q24, Q28) + `transcripts.json`. Αιτία: το κελί είχε τρέξει πριν την εγκατάσταση/αναβάθμιση του edge-tts στη session.
+- **Υλοποίηση D-014 — frozen reference set για WER audio**:
+  - Νέο `evaluation/sync_wer_audio.py` (helper, callable και τοπικά και στο Colab).
+  - Policy: cache στο `<THESIS_ROOT>/audio/synthetic/` στο Drive με `audio_manifest.json`. Σε κάθε session: hash-verify + copy. Αν λείπει κάτι → ERROR (όχι σιωπηλό regen). Rebuild μόνο με `--regenerate`, που **αρχειοθετεί** το παλιό σετ σε `synthetic_archived_<timestamp>/` (δεν σβήνεται ποτέ).
+  - Manifest fields ανά WAV: `sha256`, `size_bytes`, `sample_rate_hz`, `channels`, `duration_s`. Top-level: `created_utc`, `edge_tts_version`, `voice`.
+  - Το Cell 18.5 του `colab/thesis_colab_clean.ipynb` ενημερώθηκε: καλεί το helper (`--drive <path>`), ρίχνει `RuntimeError` αν το script αποτύχει (κανένα silent fallback).
 - **Acceptance tests που πέρασαν**:
   - Import test: `python -c "from core import avatar_engine; print(avatar_engine.available_engines())"` → `['wav2lip', ...]`.
   - App start: `[ENGINE] Available: ['wav2lip', ...] | Default: wav2lip`, καμία import error από τα παλιά modules.

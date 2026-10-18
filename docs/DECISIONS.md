@@ -12,6 +12,20 @@
 
 ---
 
+## D-014 — Αναπαραγωγιμότητα synthetic audio (Drive-cached + manifest) (2026-10-18)
+
+- **Απόφαση**: Τα 10 synthetic WAV για WER δημιουργούνται **μία φορά** και αποθηκεύονται στο Google Drive (`/content/drive/MyDrive/thesis_ai_and_dl/audio/synthetic/*.wav` + `transcripts.json`). Σε κάθε Colab session, το κελί γέννησης **πρώτα ελέγχει το Drive**: αν τα αρχεία υπάρχουν, τα αντιγράφει στο workspace. Αλλιώς τα παράγει (edge-tts → ffmpeg → WAV 16 kHz mono) και τα σώζει στο Drive. Παράλληλα γράφεται `audio_manifest.json` με: `edge_tts_version`, `voice`, `sample_rate`, `created_utc`, και sha256 hash κάθε WAV.
+- **Εναλλακτικές**:
+  - Αναγέννηση σε κάθε session: μη ντετερμινιστικό (edge-tts εξαρτάται από το Microsoft endpoint — βλ. το 403 incident στα 2026-10-17/18), αλλάζει το byte-content ανά εκτέλεση ακόμα και με ίδιο κείμενο/φωνή.
+  - Repo-committed WAVs: ~10×100 KB = ~1 MB, όχι ιδανικό για git (binary blobs).
+- **Γιατί**:
+  - **Σταθερό input για WER**: Το Whisper μπορεί να έχει μικρές διαφορές ανά run — αν αλλάζει και το audio byte-for-byte, δεν ξέρουμε ποια είναι η διακύμανση του STT και ποια του TTS.
+  - **Audit trail**: Το manifest επιτρέπει να πεις στη διπλωματική "όλα τα WER νούμερα παρήχθησαν από audio φτιαγμένο με edge-tts X.Y.Z, voice `en-US-JennyNeural`, στις DATE" — reproducible.
+  - **Ανθεκτικότητα σε endpoint outages**: Αν η edge-tts σπάσει (403, downtime), το benchmark συνεχίζει με τα cached WAV.
+- **Σημείωση**: Αν αλλάξει voice ή edge-tts major version και αλλάξει το ακουστικό αποτέλεσμα, γράφεται **νέο** manifest και ξανατρέχει το benchmark από την αρχή (όχι partial updates).
+
+---
+
 ## D-013 — Wav2Lip `resize_factor` παράμετρος (2026-10-18)
 
 - **Απόφαση**: Το `resize_factor` του Wav2Lip γίνεται παράμετρος του `Wav2LipEngine`, default **2** όπως στην προηγούμενη υλοποίηση. Στο ΒΗΜΑ 4 η επίδρασή του σε ταχύτητα/ποιότητα θα μετρηθεί, και η τιμή για τη σύγκριση με το MuseTalk θα επιλεγεί ώστε η τελική ανάλυση προσώπου να είναι συγκρίσιμη (**256×256** στόχος, εκτίμηση).
