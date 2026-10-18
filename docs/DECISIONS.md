@@ -8,6 +8,71 @@
 
 > Για συνέχειες και αλλαγές στο σχεδιασμό, εγγραφή νεότερη πάνω.
 
+> **Κανόνας εγγραφής**: στο DECISIONS.md και στο LAB_NOTEBOOK.md καταγράφεται μόνο ό,τι έχει μετρηθεί ή επιβεβαιωθεί. Οι εκτιμήσεις σημειώνονται ρητά ως "εκτίμηση".
+
+---
+
+## D-013 — Wav2Lip `resize_factor` παράμετρος (2026-10-18)
+
+- **Απόφαση**: Το `resize_factor` του Wav2Lip γίνεται παράμετρος του `Wav2LipEngine`, default **2** όπως στην προηγούμενη υλοποίηση. Στο ΒΗΜΑ 4 η επίδρασή του σε ταχύτητα/ποιότητα θα μετρηθεί, και η τιμή για τη σύγκριση με το MuseTalk θα επιλεγεί ώστε η τελική ανάλυση προσώπου να είναι συγκρίσιμη (**256×256** στόχος, εκτίμηση).
+- **Γιατί**: Η resize πριν το face detection επηρεάζει ταυτόχρονα ταχύτητα και ποιότητα. Για δίκαιη σύγκριση ποιότητας (SyncNet LSE-D/LSE-C) στο ΒΗΜΑ 4, τα δύο engines πρέπει να παράγουν frames στην ίδια native resolution.
+- **Σημείωση**: Η τιμή που χρησιμοποιήθηκε σε κάθε run καταγράφεται στο `extra.resize_factor` του `LipsyncResult`.
+
+---
+
+## D-012 — Avatar engines ως persistent subprocess workers (2026-10-18)
+
+- **Απόφαση**: Στο ΒΗΜΑ 2, όλα τα avatar engines θα τρέχουν ως **persistent subprocess workers** με κοινό πρωτόκολλο JSON-lines (`core/engines/worker_base.py`). Το μοντέλο φορτώνεται **μία φορά** (`load_time_s`), κάθε πρόταση μετριέται χωριστά (`time_s`).
+- **Εναλλακτικές**:
+  - In-process import: μολύνει το main app με Wav2Lip/MuseTalk deps, dependency conflicts.
+  - Νέο subprocess ανά αίτημα (όπως σήμερα): τεράστιο noise από model load, αδικεί τη σύγκριση.
+- **Γιατί**:
+  - Οι ίδιες συνθήκες μέτρησης για Wav2Lip και MuseTalk → δίκαιη σύγκριση στη διπλωματική.
+  - Απομόνωση εξαρτήσεων (MuseTalk θέλει mmcv/mmpose, Wav2Lip παλαιότερο torch).
+  - Health check / auto-restart σε crash — απαραίτητο για long-running demo.
+- **Σημείωση ΒΗΜΑΤΟΣ 0**: Προσωρινά το Wav2Lip τρέχει με το σημερινό subprocess-ανά-κλήση (`load_time_s = NaN`). Στο ΒΗΜΑ 2 μεταφέρεται στον worker πρωτόκολλο.
+
+---
+
+## D-011 — Μεθοδολογία μέτρησης avatar (2026-10-18)
+
+- **Απόφαση**:
+  - **VRAM**: `nvidia-smi --query-gpu=memory.used` sampling κάθε 200 ms από background thread κατά το `generate()`. `peak_vram_mb = max(samples) − baseline`. Ίδιο για in-process και subprocess engines.
+  - **Χρόνοι**: χωριστά `load_time_s` (φόρτωση μοντέλου, μία φορά), `prepare_time_s` (one-off base prep), `time_s` (καθαρό inference, per sentence), `encode_time_s` (ffmpeg re-encode σε h264+yuv420p+faststart, κοινή συνάρτηση `reencode_browser_safe`).
+  - **Warm-up**: 1 run ανά engine πριν τα μετρήσιμα runs, flagged `is_warmup=True` στο CSV, εξαιρείται από στατιστικά.
+  - **Ollama**: σταματημένο κατά τη σύγκριση avatar engines ώστε η μέτρηση VRAM να μην μολύνεται.
+- **Εναλλακτικές**:
+  - `torch.cuda.max_memory_allocated()`: ακριβές αλλά τυφλό στα subprocess engines (Wav2Lip, SadTalker, μελλοντικό MuseTalk worker).
+  - Μία μόνο μέτρηση χρόνου: μπερδεύει load + infer + encode, αδύνατη η δίκαιη σύγκριση.
+- **Γιατί**: Τα engines τρέχουν σε διαφορετικά envs και subprocess types — η μόνη ομοιόμορφη πηγή VRAM μέτρησης είναι ο GPU driver (nvidia-smi). Ο διαχωρισμός χρόνων απομονώνει κάθε συνιστώσα του end-to-end latency.
+
+---
+
+## D-010 — LatentSync εκτός πειραμάτων (2026-10-18)
+
+- **Απόφαση**: Το LatentSync **εξαιρείται από τα πειράματα** της διπλωματικής και αναφέρεται **μόνο στη βιβλιογραφία** ως ανώτερο όριο ποιότητας.
+- **Εναλλακτικές**: Υλοποίηση και σύγκριση offline, παρά τον χρόνο εκτέλεσης.
+- **Γιατί**: Diffusion πολλών βημάτων inference, δεν είναι real-time (ασυμβίβαστο με το σχεδιαστικό constraint του tutor). Η πρόσθεση ενός offline engine μόνο για benchmark δεν προσφέρει στο narrative "real-time multimodal tutor".
+
+---
+
+## D-009 — Κοινό interface `AvatarEngine` (2026-10-18)
+
+- **Απόφαση**: Όλα τα avatar engines υλοποιούν το Protocol `AvatarEngine` με `is_available() / prepare(base_path) / generate(audio_path, base_path?, out_path?, is_warmup) -> LipsyncResult`. Εγγράφονται σε κεντρικό `ENGINES` registry στο [core/avatar_engine.py](../core/avatar_engine.py). Το app και το benchmark τα καλούν μόνο μέσω του registry.
+- **Εναλλακτικές**:
+  - Hard-coded dict `{"wav2lip": fn, ...}` στο app.py (η προηγούμενη κατάσταση): δεν δουλεύει για engines με `prepare()` (MuseTalk) ή για το benchmark που θέλει μετρικές.
+  - Base class + inheritance αντί Protocol: περιττό boilerplate, καμία ανάγκη για shared state.
+- **Γιατί**:
+  - Τα engines έχουν διαφορετικά cost profiles: Wav2Lip = static image / ή idle video, μηδενικό ή ελαφρύ prepare. SadTalker = ίδιο αλλά βαρύτερο. MuseTalk = idle video, βαρύ prepare μία φορά, γρήγορο per-sentence inference. Χωρίς `prepare()`/`load_time_s` η σύγκριση είναι άδικη.
+  - Το `LipsyncResult` έχει χωριστά πεδία `load_time_s`, `prepare_time_s`, `time_s`, `encode_time_s`, drop-in σε CSV (`as_row()`) για το benchmark του ΒΗΜΑΤΟΣ 4.
+  - `is_available()` επιτρέπει στο HP να τρέχει το app χωρίς το MuseTalk (κανόνας D).
+
+---
+
+## D-001 — [ΑΝΑΘΕΩΡΗΣΗ 2026-10-18] MuseTalk επανεντάσσεται ως κύριο engine
+
+- Η αρχική εξαίρεση του MuseTalk (λόγω stub implementation) **ακυρώνεται**. Στο νέο σχέδιο ΒΗΜΑΤΟΣ 2 υλοποιείται πλήρως ως persistent subprocess worker σε ξεχωριστό Python env (mmcv/mmpose), με pre-computed latents του idle βίντεο. Το Wav2Lip παραμένει ως baseline.
+
 ---
 
 ## D-008 — WER testing: synthetic + recorded audio (2026-10-07)

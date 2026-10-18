@@ -9,6 +9,41 @@ MSc AI & Deep Learning, University of West Attica.
 
 ---
 
+## [2026-10-18] Avatar σύγκριση — ΒΗΜΑ 0: κοινό interface, Wav2Lip adapter
+
+- **Στόχος**: Κοινή διεπαφή για όλα τα avatar engines (Wav2Lip σήμερα, SadTalker/MuseTalk επόμενα βήματα), με μετρήσιμα πεδία για το benchmark του ΒΗΜΑΤΟΣ 4. Zero regression στο live app.
+- **Τι άλλαξε**:
+  - `core/avatar_engine.py` (νέο): Protocol `AvatarEngine` + dataclass `LipsyncResult` (video_path, time_s, video_duration_s, fps, peak_vram_mb, load_time_s, prepare_time_s, encode_time_s, engine, base_kind, is_warmup, extra). Helpers: `probe_video`, `VRAMSampler` (nvidia-smi κάθε 200 ms), `reencode_browser_safe` (h264+yuv420p+faststart, μετράει `encode_time_s`), `detect_base_kind` (video/image από extension), `register`/`get`/`available_engines`.
+  - `core/engines/__init__.py` + `core/engines/wav2lip.py` + `core/engines/sadtalker.py`: adapters που κάνουν `@register(...)` στο import, με lazy `prepare()`. Υποστήριξη image **και** video base στο Wav2Lip (video → ffmpeg fps-normalize σε 25 fps + cache). `--static True` περνιέται μόνο σε image (bool argparse gotcha στο Wav2Lip/inference.py:23). `resize_factor` παραμετρικό (D-013).
+  - `app.py`: ο dispatcher καλεί `avatar_engine.get(name).generate(audio_path)`. Νέο endpoint `/api/engines`. `_AVAILABLE` εκτίθεται στο frontend. Το legacy user-site path (`/tmp/.local/...`) έφυγε από το Wav2Lip env (ο χρήστης το μετακίνησε στο top-level `sys.path.insert` για K8s pods — παραμένει εκεί, όχι μέσα στα engines).
+  - `frontend/index.html` + `frontend/main.js`: dropdown lipsync γίνεται dynamic (`<option value="">Loading…</option>`). Νέο `loadEngines()` + `init()` που ανοίγει το WS μόνο αφού φορτωθούν models + engines (αποφεύγει race με άδειο `set_engine`).
+  - Διαγραφή: `core/lipsync.py`, `core/musictalk_lipsync.py`, `core/wav2lip_lipsync.py`, `core/sadtalker_lipsync.py` (η λογική τους μεταφέρθηκε στο `core/engines/`).
+  - `.gitignore`: `_test_*.mp4` για throwaway test βίντεο.
+- **Bugs που εντοπίστηκαν και διορθώθηκαν**:
+  1. **Σχετικά paths στα subprocess**: Το Wav2Lip τρέχει με `cwd=WAV2LIP_PATH`, άρα σχετικά paths από το caller αποτύγχαναν σιωπηλά. Λύση: `os.path.abspath` σε όλα τα paths πριν σταλούν στον υποδιαδικασία (`prepare`/`generate`).
+  2. **ffmpeg + paths με κενά**: Όταν το audio path περιείχε κενά (π.χ. "AI and DL/Thesis…/evaluation/audio/…"), το Wav2Lip φτιάχνει έναν συνδυασμένο ffmpeg command που κατέληγε σε **σιωπηλά άδειο output** (returncode=0, size=0). Λύση: αντιγραφή του audio σε temp path χωρίς κενά πριν την inference. Το error message πλέον περιλαμβάνει stdout/stderr αντί για γενικό "empty output".
+  3. **Edge-TTS 403 Forbidden**: Το edge-tts άρχισε να απαντά 403 στο Microsoft endpoint. Λύση: `pip install -U edge-tts` → **7.2.8** (ήδη αυτή η έκδοση είναι pinned στο `requirements.txt`, άρα για όποιον κάνει fresh install δεν αλλάζει τίποτα· το issue αφορά παλαιότερες εκδόσεις).
+- **Μέτρηση — Test 3a** (Wav2Lip σε image, GTX 1650 4 GB, cold subprocess):
+  - `time_s = 57.10 s` (περιλαμβάνει model load — βλ. D-012, θα απομονωθεί στο ΒΗΜΑ 2)
+  - `video_duration_s = 2.76 s`
+  - **RTF ≈ 20.7** (χρόνος / διάρκεια)
+  - `peak_vram_mb ≈ 3028 MB`
+  - `prepare_time_s = 1.67 s` (image resize/crop, μία φορά)
+  - `encode_time_s = 0.27 s`
+  - `load_time_s = NaN` (subprocess bundles load+infer)
+- **Μέτρηση — Test 3b** (Wav2Lip σε video base, idle 3 s @ 25 fps):
+  - [TODO: συμπλήρωσε μετά την εκτέλεση. Αναμένεται `base_kind=video`, `--static` να ΜΗΝ εμφανίζεται στο Wav2Lip command, πολλά frames στην face detection.]
+- **Acceptance tests που πέρασαν**:
+  - Import test: `python -c "from core import avatar_engine; print(avatar_engine.available_engines())"` → `['wav2lip', ...]`.
+  - App start: `[ENGINE] Available: ['wav2lip', ...] | Default: wav2lip`, καμία import error από τα παλιά modules.
+  - E2E στο Colab: Avatar ON + wav2lip → video όπως πριν. Avatar OFF → audio-only (κανόνας που διορθώθηκε νωρίτερα).
+- **Για τη διπλωματική**:
+  - **Κεφ. 6 §Avatar architecture**: περιγραφή του common interface + registry pattern (δίκαιη βάση σύγκρισης multiple engines).
+  - **Κεφ. 7 §Latency decomposition**: η τριμερής διάσπαση (`load / prepare / inference / encode`) θα χρησιμοποιηθεί για να εξηγηθεί γιατί το Wav2Lip φαίνεται αργό σε cold-start subprocess αλλά συγκρίσιμο όταν στρωθεί σε persistent worker (ΒΗΜΑ 2).
+- **Επόμενο**: ΒΗΜΑ 1 — SadTalker idle video (idle 8–10 s της δασκάλας με φυσική κίνηση κεφαλιού και blinks). Σημείωση: ο `SadTalkerEngine` σήμερα έχει hard-coded `--still` και `--preprocess crop` — όταν φτάσουμε εκεί, θα γίνουν παράμετροι του constructor.
+
+---
+
 ## [2026-10-07] Βήμα 2 — Α1: Synthetic audio για WER (10 wav)
 
 - **Στόχος**: Παραγωγή synthetic audio για 10 από τις 33 ερωτήσεις, ώστε στο ΒΗΜΑ 4 να μετρηθεί WER του Whisper σε «καθαρές» συνθήκες (lower-bound baseline).
