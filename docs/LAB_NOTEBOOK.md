@@ -61,6 +61,31 @@ MSc AI & Deep Learning, University of West Attica.
   - Manifest fields ανά WAV: `sha256`, `size_bytes`, `sample_rate_hz`, `channels`, `duration_s`. Top-level: `created_utc`, `edge_tts_version`, `voice`.
   - Το Cell 18.5 του `colab/thesis_colab_clean.ipynb` ενημερώθηκε: καλεί το helper (`--drive <path>`), ρίχνει `RuntimeError` αν το script αποτύχει (κανένα silent fallback).
   - **Επιβεβαίωση στο Colab**: 1η εκτέλεση → `[FIRST RUN]` + generate + `Mirrored WAVs + transcripts + manifest to Drive`. 2η εκτέλεση (ίδιο ή νέο runtime) → `Copied N files from Drive, SHA-256 verified.` ✅
+
+---
+
+## [2026-10-18] Avatar σύγκριση — ΒΗΜΑ 1 (προετοιμασία): v2 image + SadTalker adapter + idle video pipeline
+
+- **Στόχος**: Έτοιμη υποδομή για παραγωγή idle video της δασκάλας (ΒΗΜΑ 1, D-015). Zero regression στο live app με την αλλαγή σε v2 avatar.
+- **Τι άλλαξε**:
+  - `frontend/assets/teacher_avatar_v2.jpg` (νέο, 1792×2400, SHA-256 `108f28ec…c78253`): AI-generated από Gemini app (D-016). Η παλιά `teacher_avatar.jpg` (263×350) παραμένει ως ιστορικό baseline.
+  - `config.py`: `AVATAR_IMAGE_PATH` default → v2.
+  - `frontend/index.html`: UI avatar circle → v2 (full-size JPEG, όχι preview — επιλογή Α της συζήτησης).
+  - `core/engines/sadtalker.py`: παραμετρικός constructor (`still`, `preprocess`, `enhancer`, `size`, `pose_style`, `expression_scale`). Default values = προηγούμενη συμπεριφορά (zero regression για το app). `--still` και `--enhancer` περνιούνται στο subprocess **μόνο όταν αληθεύουν** (store_true gotcha για `--still`). Working resolution: aspect-preserving `thumbnail(1200, 1200)` **αντί** για square `resize(512, 512)` — απαραίτητο για την portrait v2 (D-016). Επαναφορά `os.path.abspath` σε `prepare()` και `generate()` (regression fix του ΒΗΜΑΤΟΣ 0 — Bug 1).
+  - `evaluation/make_idle_video.py` (νέο): candidate-based pipeline με CLI params (`--preprocess`, `--still/--no-still`, `--audio`, `--enhancer`, `--duration`, `--expression-scale`, `--pose-style`, `--size`), ping-pong post-process, per-candidate manifest JSON (SHA-256, SadTalker config, source image hash, SadTalker commit, measurements). `--promote <name>` προάγει επιλεγμένο candidate ως `teacher_idle_25fps.mp4` + `teacher_idle_manifest.json`, αρχειοθετώντας τυχόν προηγούμενο frozen asset.
+  - `.gitignore`: `_crop_preview_*.jpg`. Το `SadTalker/` υπήρχε ήδη.
+  - `docs/DECISIONS.md`: D-016 (v2 image, prompt, SHA-256, προφυλάξεις), D-015 (SadTalker config για idle video, 4-stage διαδικασία). D-013 ενημερώθηκε με ανοιχτό πρόβλημα για ΒΗΜΑ 4 (ο Wav2Lip adapter δεν εκμεταλλεύεται την ανάλυση της v2 — face ~65 px native με τις τρέχουσες παραμέτρους).
+  - `colab/thesis_colab_clean.ipynb` Section 5.1: 3 νέα κελιά (`step1-5-1a-sadtalker-setup`, `step1-5-1b-stage1-candidates`, `step1-5-1c-side-by-side-viewer`). Το placeholder `## 5.1 … (STEP 1, to be added)` έγινε πλήρης επισκόπηση.
+- **Οπτική επαλήθευση center-square crop της v2 (για Wav2Lip static mode)**: Το σημερινό `_prepare_avatar` (center crop σε 1792×1792 από 1792×2400) δίνει τέλειο head-and-shoulders frame — ολόκληρο το κεφάλι μέσα, γυαλιά καθαρά, blazer ορατό. Preview `_crop_preview_center.jpg` (ignored by git). Δεν χρειάζεται face-anchored crop.
+- **Διορθώσεις στα Section 5.1 κελιά πριν commit** (από code review):
+  1. **5.1a — SadTalker preprocess.py patch**: προστέθηκε 5c step που αντικαθιστά `t[0], t[1]])` → `t[0][0], t[1][0]])` (numpy≥1.24 "inhomogeneous shape" fix). Idempotent, τυπώνει `patched` ή `already patched`.
+  2. **5.1b — live subprocess output**: `subprocess.run` → `Popen(stdout=PIPE, stderr=STDOUT, text=True, bufsize=1)` με `for line in p.stdout: print(line, end='')` και `rc = p.wait()`. Χωρίς αυτό, τα SadTalker logs έμεναν invisible στο Colab μέχρι να τελειώσει (~2-4 min).
+  3. **5.1c — base64 embed**: Το Colab δεν σερβίρει `/content/*` σε HTML `<video src>`. Αλλαγή σε `data:video/mp4;base64,{data}` με `base64.b64encode(src.read_bytes()).decode()`.
+- **Pending — ΔΕΝ έχει ακόμα εκτελεστεί στο Colab**:
+  - SadTalker setup cell (5.1a) — πρώτη φορά θα κατεβάσει checkpoints + GFPGAN weights στο Drive (~2-3 min).
+  - Stage-1 candidates (5.1b) — 3 videos × 4 s, ~2-4 min το καθένα.
+  - Οπτική επιλογή preprocess mode → stage-2 cell → final cells → promote.
+  - Μετρήσεις χρόνου/VRAM θα καταγραφούν στα `.json` manifests κάθε candidate και θα συνοψιστούν εδώ όταν ολοκληρωθεί το ΒΗΜΑ 1.
 - **Acceptance tests που πέρασαν**:
   - Import test: `python -c "from core import avatar_engine; print(avatar_engine.available_engines())"` → `['wav2lip', ...]`.
   - App start: `[ENGINE] Available: ['wav2lip', ...] | Default: wav2lip`, καμία import error από τα παλιά modules.
