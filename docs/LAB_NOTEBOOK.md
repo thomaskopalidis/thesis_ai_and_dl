@@ -86,6 +86,33 @@ MSc AI & Deep Learning, University of West Attica.
   - Stage-1 candidates (5.1b) — 3 videos × 4 s, ~2-4 min το καθένα.
   - Οπτική επιλογή preprocess mode → stage-2 cell → final cells → promote.
   - Μετρήσεις χρόνου/VRAM θα καταγραφούν στα `.json` manifests κάθε candidate και θα συνοψιστούν εδώ όταν ολοκληρωθεί το ΒΗΜΑ 1.
+
+---
+
+## [2026-10-18] Avatar σύγκριση — ΒΗΜΑ 1 (ολοκλήρωση): idle video της δασκάλας
+
+- **Αποτέλεσμα**: Το παγωμένο idle video `teacher_idle_25fps.mp4` παράχθηκε και αποθηκεύτηκε στο Drive (`<THESIS_ROOT>/avatar/`) με το αντίστοιχο manifest. Έτοιμο για το ΒΗΜΑ 2 (MuseTalk lip-sync).
+- **Επιπλέον χειροκίνητες αλλαγές στο notebook (Python 3.13 συμβατότητα)**:
+  - **5.1a βήμα 4**: αντικατάσταση του plain `pip install` με patched εγκατάσταση για Python 3.13. Το `basicsr 1.4.2` σπάει στο `setup.py` λόγω χρήσης `locals()` — εφαρμόστηκε patch. Τα `gfpgan` και `facexlib` εγκαθίστανται με `--no-deps` για να μην ανατρέψουν τον torch stack του Colab.
+  - **5.1a νέο βήμα**: NumPy-2 patch σε όλα τα `.py` του `SadTalker/` (`VisibleDeprecationWarning`, `np.float` → `np.float64`, `np.int` → `np.int64`, `np.complex` → `np.complex128`, `np.bool` → `np.bool_`).
+  - Προστέθηκαν τα κελιά `step1-5-1d-stage2-audio`, `step1-5-1e-final-10s`, `step1-5-1f-promote`.
+- **Περιβάλλον μέτρησης**: Colab (Python 3.13.15, torch 2.11.0+cu130, numpy 2.1.3, Tesla T4).
+- **Επιλογές ανά στάδιο** (με συγκεκριμένη αιτιολόγηση):
+  - **Stage 1 (preprocess)** → **`full` + `--still`**. Το `extcrop` απορρίφθηκε γιατί παρήγαγε 256×256 output (crop μόνο προσώπου, χάνεται το κάδρο της v2). Το `full` χωρίς still είχε υπερβολική κίνηση κεφαλιού. Το `full + still` κρατάει ήπιες μικροκινήσεις και blinks χωρίς αχρείαστο head swing.
+  - **Stage 2 (audio)** → **`pink` θόρυβος**. Μετρήσεις στα 4 s driver audio: **`s2_pink` 97.46 s, `s2_silence` 97.5 s** (ουσιαστικά ίδιο κόστος), **peak VRAM 2912 MB** και για τα δύο. Οπτικά τα δύο outputs είναι πανομοιότυπα (οι μικροκινήσεις είναι driven από το face reenactment, όχι από το audio envelope). Επιλέχθηκε το `pink` ως πιο ρεαλιστικό fallback αν αλλάξει μελλοντικά το SadTalker.
+  - **Final (enhancer)** → **χωρίς GFPGAN**. Το GFPGAN κάνει 2× upscale του output σε 1792×2400 και προσθέτει σημαντικό χρόνο. Για το use case μας (idle video που θα loop-άρει με το MuseTalk να ξαναζωγραφίζει την περιοχή του στόματος) η ταχύτητα και η συνέπεια ανάλυσης με τα downstream engines προέχει.
+  - **Final 10 s run (chosen = `final_pink_none`)**: SadTalker **223.96 s** για 10 s driver, **peak VRAM 3100 MB**, pipeline total (SadTalker + ping-pong) **239.43 s**.
+- **Promoted asset**:
+  - Path: `<THESIS_ROOT>/avatar/teacher_idle_25fps.mp4` + `teacher_idle_manifest.json`
+  - Source candidate: `final_pink_none` (full + still, pink audio, 10 s + ping-pong = **20 s playback**)
+  - Resolution: **896×1200**, 25 fps, 842 501 bytes
+  - **Video SHA-256**: `6f5179af83370d3435898bc29bbc90e2abc9ee60f076cf8b596f72a060be2298`
+  - **Source image SHA-256**: `108f28ec760ebc57bb65772ee9cb186fc4b8ed5a51183084b3d65af253c78253` (teacher_avatar_v2.jpg)
+  - **SadTalker commit**: `cd4c0465ae0b54a6f85af57f5c65fec9fe23e7f8`
+- **Για τη διπλωματική**:
+  - **Κεφ. 6 §Idle avatar**: περιγραφή 4-stage επιλογής (preprocess → audio → duration → enhancer) ως παράδειγμα methodology όπου κάθε απόφαση έχει μετρηθεί ή αιτιολογηθεί οπτικά.
+  - **Κεφ. 7 §Latency**: `GFPGAN rejected` ως trade-off σημείο — ανάλυση output vs χρόνος παραγωγής.
+- **Επόμενο**: ΒΗΜΑ 2 — MuseTalk v1.5 persistent worker + lip-sync πάνω στο frozen idle video.
 - **Acceptance tests που πέρασαν**:
   - Import test: `python -c "from core import avatar_engine; print(avatar_engine.available_engines())"` → `['wav2lip', ...]`.
   - App start: `[ENGINE] Available: ['wav2lip', ...] | Default: wav2lip`, καμία import error από τα παλιά modules.

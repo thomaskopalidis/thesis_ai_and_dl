@@ -12,6 +12,68 @@
 
 ---
 
+## D-016 — Αλλαγή avatar image σε v2 (AI-generated, 1792×2400) (2026-10-18)
+
+- **Απόφαση**: Από εδώ και πέρα όλα τα avatar engines χρησιμοποιούν το `frontend/assets/teacher_avatar_v2.jpg` (1792×2400, portrait, AI-generated). Η παλιά `teacher_avatar.jpg` (263×350) παραμένει στο repo ως ιστορικό baseline, δεν χρησιμοποιείται σε νέα runs.
+- **Παγωμένο artifact (SHA-256)**: `108f28ec760ebc57bb65772ee9cb186fc4b8ed5a51183084b3d65af253c78253`
+- **Εργαλείο & prompt** (για reproducibility):
+  - **Εργαλείο**: Google Gemini app (image generation), 2026-10-18. **Η ακριβής έκδοση του μοντέλου δεν εκτίθεται από το Gemini**.
+  - **Prompt**:
+    > "beautiful photorealistic portrait of a Swedish woman university physics lecturer, early 30s, light blonde shoulder-length hair, blue eyes, full natural lips, subtle natural makeup, thin-frame glasses, navy blazer over cream fine-knit top, small silver earrings, head and shoulders, facing camera, calm confident expression, mouth closed, soft natural window light, blurred modern lecture hall, sharp focus, 85mm"
+  - **Seed**: δεν παρέχεται από το Gemini → **η εικόνα δεν αναπαράγεται από το prompt**. Reproducibility βασίζεται στο ίδιο το αρχείο (SHA-256 παραπάνω) ως παγωμένο artifact.
+- **Χαρακτηριστικά**: Φανταστικό πρόσωπο (όχι υπαρκτό). Γυναίκα με γυαλιά λεπτού σκελετού, μικρά silver σκουλαρίκια, navy blazer πάνω από cream πλεκτή μπλούζα, θολωμένο background αίθουσας.
+- **Γιατί αλλάξαμε**:
+  - Η παλιά 263×350 ήταν πολύ μικρή. Μετά το face detection + center crop σε 263×263 και re-resize σε 480×480 (Wav2Lip default), το actual face region ήταν εκτίμηση ~80 px στις πρωτογενείς pixel του μοντέλου — πολύ κάτω από τα 96 px που θέλει εσωτερικά το Wav2Lip, εξού και η θολή απόδοση.
+  - Για δίκαιη σύγκριση με MuseTalk (που απαιτεί face ~256 px native), χρειαζόμαστε source image που αφήνει αρκετό working resolution ΜΕΤΑ το crop.
+- **Working resolution**: ~896×1200 (ο thumbnail με max side 1200 px δίνει 896×1200 διατηρώντας το 3:4 aspect ratio). Face bbox πέφτει εκτίμηση στα ~256-300 px που είναι το native target του MuseTalk. Εφαρμόζεται **μόνο για SadTalker/MuseTalk** — για Wav2Lip το resize_factor θα επανεκτιμηθεί στο ΒΗΜΑ 4.
+- **Οπτική επαλήθευση center-square crop (για το Wav2Lip static mode)**: ελέγχθηκε ότι το σημερινό `_prepare_avatar` (center crop σε min_side × min_side) εφαρμοσμένο στη v2 δίνει τέλειο head-and-shoulders frame — ολόκληρο το κεφάλι μέσα, blazer ορατό. Το face είναι τοποθετημένο στο γεωμετρικό κέντρο της εικόνας από design του prompt. **Δεν χρειάζεται face-anchored crop.**
+- **Δεν χρησιμοποιήθηκε upscale** (Real-ESRGAN κ.λπ.) — η v2 είναι ήδη source υψηλής ανάλυσης.
+- **Γνωστά risk points στο idle video**:
+  - Λεπτά γυαλιά → πιθανό morphing από face reenactment του SadTalker. Mitigation: χαμηλό `expression_scale`, οπτικός έλεγχος. **Αποτέλεσμα ΒΗΜΑΤΟΣ 1**: τα γυαλιά διατηρήθηκαν σωστά με `expression_scale=0.5` + `--still` + `preprocess=full` χωρίς GFPGAN.
+- **TODO (prod deployment)**: Το [Dockerfile](../Dockerfile) και το [k8s-physics-tutor.yaml](../k8s-physics-tutor.yaml) ακόμα αναφέρουν την παλιά εικόνα. Μετά τη σύγκλιση των avatar πειραμάτων θα ενημερωθούν ώστε το prod image να έχει τη v2.
+- **Αναθεώρηση D-013**: η τιμή `resize_factor` του Wav2Lip στο ΒΗΜΑ 4 θα επανεκτιμηθεί — με v2 και working res 896×1200, το default `resize_factor=2` μπορεί να μην είναι βέλτιστο.
+
+---
+
+## D-015 — SadTalker config για idle video της δασκάλας (2026-10-18)
+
+- **Απόφαση**: Το idle video της δασκάλας (σιωπηλό, 10 s @ 25 fps, ping-pong σε ~20 s) παράγεται **μία φορά** με SadTalker και χρησιμοποιείται σε όλα τα downstream MuseTalk runs. Αποθηκεύεται στο Drive, hash-verified (D-014-style policy).
+- **Διαδικασία επιλογής ρυθμίσεων** (4 στάδια, όλα εκτελέστηκαν στο Colab T4):
+  1. **Σύγκριση 3 clips των 4 s** για επιλογή preprocess mode:
+     - (i) `--preprocess full` χωρίς `--still`
+     - (ii) `--preprocess extcrop` χωρίς `--still`
+     - (iii) `--preprocess full` + `--still`
+  2. **Σύγκριση 2 audio inputs** στην επιλεγμένη preprocess mode:
+     - (A) πολύ-χαμηλός ροζ θόρυβος @ 16 kHz mono (`anoisesrc=c=pink:a=0.003`)
+     - (B) καθαρή σιωπή (`anullsrc`)
+  3. **Τελικό clip 10 s** με την επιλεγμένη combination.
+  4. **Δύο εκδόσεις** του τελικού: μία χωρίς enhancer, μία με `--enhancer gfpgan`. Οπτική επιλογή της τελικής.
+- **Αποτελέσματα επιλογών** (εκτέλεση 2026-10-18, Colab T4, Python 3.13.15, torch 2.11.0+cu130, numpy 2.1.3):
+  - **Stage 1 → `full` + `--still`**. Το `extcrop` απορρίφθηκε γιατί παρήγαγε 256×256 output (crop μόνο προσώπου). Το `full` χωρίς still είχε υπερβολική κίνηση κεφαλιού. Το `full + still` κρατάει ήπιες μικροκινήσεις και blinks.
+  - **Stage 2 → `pink` θόρυβος**. Μετρήσεις στα 4 s driver: `s2_pink` **97.46 s**, `s2_silence` **97.5 s** (ουσιαστικά ίδιο κόστος), **peak VRAM 2912 MB** και για τα δύο. Οπτικά πανομοιότυπο αποτέλεσμα (οι μικροκινήσεις είναι driven από το face reenactment, όχι από το audio envelope). Επιλέχθηκε το `pink` ως πιο ρεαλιστικό fallback αν αλλάξει μελλοντικά το SadTalker.
+  - **Final → χωρίς GFPGAN**. Το GFPGAN κάνει 2× upscale σε 1792×2400 και κοστίζει σημαντικό χρόνο. Για το use case (idle video που θα loop-άρει με το MuseTalk να ξαναζωγραφίζει την περιοχή του στόματος) προέχουν η ταχύτητα απόκρισης και η συνέπεια ανάλυσης με τα downstream engines.
+  - **Final 10 s run (`final_pink_none`)**: SadTalker **223.96 s** για 10 s driver, peak **VRAM 3100 MB**, pipeline total **239.43 s**.
+- **Promoted asset — παγωμένες τιμές**:
+  - Path: `<THESIS_ROOT>/avatar/teacher_idle_25fps.mp4` (+ `teacher_idle_manifest.json`)
+  - Resolution: **896×1200**, 25 fps, **20 s playback** (ping-pong), 842 501 bytes
+  - **Video SHA-256**: `6f5179af83370d3435898bc29bbc90e2abc9ee60f076cf8b596f72a060be2298`
+  - **Source image SHA-256**: `108f28ec760ebc57bb65772ee9cb186fc4b8ed5a51183084b3d65af253c78253` (teacher_avatar_v2.jpg, D-016)
+  - **SadTalker commit**: `cd4c0465ae0b54a6f85af57f5c65fec9fe23e7f8`
+- **Τελικές SadTalker arguments**:
+  - `--source_image`: `teacher_avatar_v2.jpg` (resized σε max 1200 px, aspect-preserved)
+  - `--driven_audio`: 10 s pink noise @ 16 kHz mono
+  - `--preprocess full`
+  - `--still` (ενεργό)
+  - `--pose_style 0`
+  - `--expression_scale 0.5`
+  - `--size 256`
+  - **Χωρίς `--enhancer`**
+- **Post-processing**: ping-pong loop (forward + reverse concat) → ~20 s βίντεο που κάνει seamless loop. Το σημείο αναστροφής είναι το ίδιο καρέ, άρα δεν υπάρχει ραφή.
+- **Policy αναπαραγωγιμότητας** (όπως D-014): παγωμένο asset στο Drive με manifest (SHA-256 του video, SHA-256 του source image, SadTalker config, audio preset, created_utc, SadTalker commit hash). Rebuild μόνο με `--regenerate` που αρχειοθετεί το παλιό.
+- **Γιατί "μία φορά"**: αλλαγή idle video → όλα τα MuseTalk benchmarks πρέπει να επανεκτελεστούν. Παγωμένο asset = συγκρίσιμες μετρήσεις στο ΒΗΜΑ 4.
+
+---
+
 ## D-014 — Αναπαραγωγιμότητα synthetic audio (Drive-cached + manifest) (2026-10-18)
 
 - **Απόφαση**: Τα 10 synthetic WAV για WER δημιουργούνται **μία φορά** και αποθηκεύονται στο Google Drive (`/content/drive/MyDrive/thesis_ai_and_dl/audio/synthetic/*.wav` + `transcripts.json`). Σε κάθε Colab session, το κελί γέννησης **πρώτα ελέγχει το Drive**: αν τα αρχεία υπάρχουν, τα αντιγράφει στο workspace. Αλλιώς τα παράγει (edge-tts → ffmpeg → WAV 16 kHz mono) και τα σώζει στο Drive. Παράλληλα γράφεται `audio_manifest.json` με: `edge_tts_version`, `voice`, `sample_rate`, `created_utc`, και sha256 hash κάθε WAV.
