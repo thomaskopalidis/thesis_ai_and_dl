@@ -82,3 +82,5 @@ temp/
 Wav2Lip/
 SadTalker/
 MuseTalk/
+
+_test_*.mp4

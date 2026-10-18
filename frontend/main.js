@@ -52,6 +52,29 @@ function updateModelBadge(name) {
 
 loadModels();
 
+// ── Load available lipsync engines (only those installed on this host) ──
+async function loadEngines() {
+    try {
+        const resp = await fetch("/api/engines");
+        const data = await resp.json();
+        engineSelect.innerHTML = "";
+        if (!data.engines || data.engines.length === 0) {
+            engineSelect.innerHTML = '<option value="">(no engines)</option>';
+            return;
+        }
+        data.engines.forEach(name => {
+            const opt = document.createElement("option");
+            opt.value = name;
+            opt.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+            if (name === data.default) opt.selected = true;
+            engineSelect.appendChild(opt);
+        });
+    } catch (e) {
+        console.warn("Could not load engines:", e);
+    }
+}
+const enginesReady = loadEngines();
+
 // ── Chat helpers ────────────────────────────────────────────────
 let currentTeacherBubble = null;
 
@@ -91,7 +114,8 @@ function scrollChat() {
 }
 
 // ── WebSocket ────────────────────────────────────────────────────
-ws.onopen = () => {
+ws.onopen = async () => {
+    await enginesReady;
     statusDiv.innerText = "Connected";
     statusDiv.className = "connected";
     ws.send(JSON.stringify({ type: "set_mode", avatar: avatarToggle.checked }));

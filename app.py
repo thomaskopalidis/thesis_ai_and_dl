@@ -39,29 +39,11 @@ _DEFAULT_TTS = "edge"
 print(f"[TTS] Available: {list(_TTS_ENGINES.keys())} | Default: {_DEFAULT_TTS}")
 
 # Lip-sync engines — loaded lazily so missing optional engines don't crash startup
-def _load_engines():
-    engines = {}
-    try:
-        from core.wav2lip_lipsync import generate_wav2lip_video
-        engines["wav2lip"] = generate_wav2lip_video
-    except Exception as e:
-        print(f"[ENGINE] wav2lip unavailable: {e}")
-    try:
-        from core.musictalk_lipsync import generate_musictalk_video
-        engines["musetalk"] = generate_musictalk_video
-    except Exception as e:
-        print(f"[ENGINE] musetalk unavailable: {e}")
-    try:
-        from core.sadtalker_lipsync import generate_sadtalker_video
-        engines["sadtalker"] = generate_sadtalker_video
-    except Exception as e:
-        print(f"[ENGINE] sadtalker unavailable: {e}")
-    return engines
 
-_ENGINES = _load_engines()
-_DEFAULT_ENGINE = next(iter(_ENGINES), "wav2lip")
-print(f"[ENGINE] Available: {list(_ENGINES.keys())} | Default: {_DEFAULT_ENGINE}")
-
+from core import avatar_engine
+_AVAILABLE = avatar_engine.available_engines()
+_DEFAULT_ENGINE = "wav2lip" if "wav2lip" in _AVAILABLE else (_AVAILABLE[0] if _AVAILABLE else None)
+print(f"[ENGINE] Available: {_AVAILABLE} | Default: {_DEFAULT_ENGINE}")
 app = FastAPI(title="Real-Time Physics Tutor Voice Backend")
 
 app.add_middleware(
@@ -85,6 +67,10 @@ async def get_models():
         models.append(label)
     return {"models": models, "default": config.OLLAMA_MODEL}
 
+@app.get("/api/engines")
+async def get_engines():
+    """Return lipsync engines available on this host (Rule D)."""
+    return {"engines": _AVAILABLE, "default": _DEFAULT_ENGINE}
 
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
@@ -108,7 +94,7 @@ async def websocket_endpoint(websocket: WebSocket):
             # 0. ENGINE SELECTION
             if input_type == "set_engine":
                 engine = payload.get("engine", "wav2lip")
-                lipsync_engine = engine if engine in _ENGINES else _DEFAULT_ENGINE
+                lipsync_engine = engine if engine in _AVAILABLE else _DEFAULT_ENGINE
                 print(f"Lipsync engine set to: {lipsync_engine}")
                 await websocket.send_json({"type": "engine_ack", "engine": lipsync_engine})
 
@@ -175,11 +161,10 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 def _run_lipsync(engine: str, audio_path: str) -> str:
-    """Calls the appropriate lipsync engine (runs in executor thread)."""
-    fn = _ENGINES.get(engine) or _ENGINES.get(_DEFAULT_ENGINE)
-    if fn is None:
+    name = engine if engine in _AVAILABLE else _DEFAULT_ENGINE
+    if name is None:
         raise RuntimeError("No lipsync engine available.")
-    return fn(audio_path)
+    return avatar_engine.get(name).generate(audio_path).video_path
 
 
 _ASSETS_DIR = os.path.join(os.path.dirname(__file__), "frontend", "assets")
